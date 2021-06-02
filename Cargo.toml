@@ -1,0 +1,21 @@
+[package]
+name = "fastchaos"
+version = "0.1.0"
+authors = ["Anicet Ebou <anicet.ebou@gmail.com>"]
+edition = "2018"
+description = "fastchaos encode, decode and analyze DNA sequence using integer Chaos Game Representation" 
+homepage = "https://github.com/Ebedthan/fastchaos"
+readme = "README.md"
+license = "MIT"
+categories = ["command-line-utilities"]
+keywords = ["bioinformatics", "DNA encoding", "chaos game representation"] 
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow        = "1.0.40"
+
+
+[[bin]]
+name = "fastchaos"
+path = "src/main.rs"
+bench = false

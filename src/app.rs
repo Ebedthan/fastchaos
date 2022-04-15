@@ -1,52 +1,94 @@
-use clap::{crate_version, App, AppSettings, Arg, SubCommand};
+// Copyright 2021-2022 Anicet Ebou.
+// Licensed under the MIT license (http://opensource.org/licenses/MIT)
+// This file may not be copied, modified, or distributed except according
+// to those terms.
 
-pub fn build_app() -> App<'static, 'static> {
+use clap::{crate_version, AppSettings, Arg, ColorChoice, Command};
+
+pub fn build_app() -> Command<'static> {
     let clap_color_setting = if std::env::var_os("NO_COLOR").is_none() {
-        AppSettings::ColoredHelp
+        ColorChoice::Always
     } else {
-        AppSettings::ColorNever
+        ColorChoice::Never
     };
 
-    let app = App::new("fastchaos")
+    let app = Command::new("fastchaos")
+                .override_usage("fastchaos [command] [options] <INFILE>")
                 .version(crate_version!())
                 .author("Anicet Ebou <anicet.ebou@gmail.com>")
                 .about("Rapid encoding, decoding and analysis of DNA sequences with Chaos Game Representation")
-                .setting(clap_color_setting)
+                .color(clap_color_setting)
                 .setting(AppSettings::DeriveDisplayOrder)
-                .subcommand(SubCommand::with_name("encode")
+                .subcommand(Command::new("encode")
                     .about("Encode a DNA sequence into integer Chaos Game Representation")
+                    .override_usage("fastchaos encode [options] <INFILE>")
                     .version(crate_version!())
                     .author("Anicet Ebou <anicet.ebou@gmail.com>")
-                    .arg(Arg::with_name("INFILE")
-                        .help("Sets the input file to use")
+                    .arg(Arg::new("INFILE")
+                        .help("sequences file in fasta format")
                         .required(true)
                         .index(1))
-                    .arg(Arg::with_name("output")
+                    .arg(Arg::new("output")
                         .long("out")
-                        .short("o")
+                        .short('o')
                         .value_name("FILE")
-                        .help("Sets a file output name")
+                        .help("output encoded sequences to FILE")
                         .takes_value(true))
                 )
-                .subcommand(SubCommand::with_name("decode")
+                .subcommand(Command::new("decode")
                     .about("Decode a sequence integer Chaos Game Representation to DNA")
+                    .override_usage("fastchaos decode [options] <INFILE>")
                     .version(crate_version!())
                     .author("Anicet Ebou <anicet.ebou@gmail.com>")
-                    .arg(Arg::with_name("INFILE")
-                        .help("Sets the input file to use")
+                    .arg(Arg::new("INFILE")
+                        .help("sequences file in fasta format")
                         .required(true)
                         .index(1))
-                    .arg(Arg::with_name("output")
+                    .arg(Arg::new("output")
                         .long("out")
-                        .short("o")
+                        .short('o')
                         .value_name("FILE")
-                        .help("Sets a file output name")
+                        .help("output decoded sequences to FILE")
                         .takes_value(true))
                 )
-                .arg(Arg::with_name("quiet")
-                .long("quiet")
-                .short("q")
-                .help("Decrease program verbosity"));
+                .subcommand(Command::new("draw")
+                    .about("Draw Chaos Game Representation to from sequence file")
+                    .override_usage("fastchaos draw [options] <INFILE>")
+                    .version(crate_version!())
+                    .author("Anicet Ebou <anicet.ebou@gmail.com>")
+                    .arg(Arg::new("INFILE")
+                        .help("sequences file in fasta format")
+                        .required(true)
+                        .index(1))
+                    .arg(Arg::new("output")
+                        .long("out")
+                        .short('o')
+                        .value_name("DIR")
+                        .help("output images to DIR")
+                        .takes_value(true))
+                )
+                .subcommand(Command::new("compare")
+                    .about("SSIM comparison of chaos game representation images")
+                    .override_usage("fastchaos compare [options] <INDIR>")
+                    .version(crate_version!())
+                    .author("Anicet Ebou <anicet.ebou@gmail.com>")
+                    .arg(Arg::new("INDIR")
+                        .help("folder of CGR images")
+                        .required(true)
+                        .index(1))
+                    .arg(Arg::new("output")
+                        .long("out")
+                        .short('o')
+                        .value_name("FILE")
+                        .help("output result to FILE")
+                        .takes_value(true))
+                )
+                .arg(Arg::new("threads")
+                    .long("threads")
+                    .short('t')
+                    .value_name("INT")
+                    .help("number of threads")
+                    .takes_value(true));
 
     app
 }

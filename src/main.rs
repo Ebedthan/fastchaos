@@ -4,7 +4,8 @@
 // to those terms.
 
 extern crate anyhow;
-extern crate bio;
+extern crate noodles;
+extern crate tempfile;
 
 use std::env;
 use std::fs;
@@ -12,9 +13,12 @@ use std::io;
 use std::path;
 
 use anyhow::{anyhow, Context, Result};
-use bio::io::fasta::{Reader, Writer};
+use noodles::fasta;
+use tempfile::tempdir;
 
 mod app;
+mod cgr;
+mod icgr;
 mod utils;
 
 fn main() -> Result<()> {
@@ -33,111 +37,145 @@ fn main() -> Result<()> {
 
     // Encode mode ------------------------------------------------------------
     if let Some(matches) = matches.subcommand_matches("encode") {
-        let file = match matches.value_of("INFILE") {
-            Some(value) => {
-                // Read from stdin
-                if value == "-" {
-                    let mut writer = Writer::to_file("infile.fa")?;
-                    let mut records = Reader::new(io::stdin()).records();
+        match matches.value_of("INFILE") {
+            Some(input) => match matches.value_of("output") {
+                Some(output) => {
+                    let destination = fs::OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open(output)?;
 
-                    while let Some(Ok(record)) = records.next() {
-                        writer.write_record(&record)?;
+                    if input == "-" {
+                        icgr::encode(io::stdin(), destination)?;
+                    } else {
+                        let source = fs::File::open(input)?;
+                        icgr::encode(source, destination)?;
                     }
-
-                    "infile.fa"
-
-                // Read from file
-                } else {
-                    value
-                }
-            }
-
-            // Read from stdin
-            None => {
-                let mut writer = Writer::to_file("infile.fa")?;
-                let mut records = Reader::new(io::stdin()).records();
-
-                while let Some(Ok(record)) = records.next() {
-                    writer.write_record(&record)?;
                 }
 
-                "infile.fa"
-            }
-        };
+                None => {
+                    if input == "-" {
+                        icgr::encode(io::stdin(), io::stdout())?;
+                    } else {
+                        let source = fs::File::open(input)?;
+                        icgr::encode(source, io::stdout())?;
+                    }
+                }
+            },
 
-        utils::encode_from_file(file, matches.value_of("output"))?;
+            None => match matches.value_of("output") {
+                Some(output) => {
+                    let destination = fs::OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open(output)?;
+
+                    icgr::encode(io::stdin(), destination)?;
+                }
+
+                None => {
+                    icgr::encode(io::stdin(), io::stdout())?;
+                }
+            },
+        }
 
     // Decode mode ------------------------------------------------------------
     } else if let Some(matches) = matches.subcommand_matches("decode") {
-        let file = match matches.value_of("INFILE") {
-            Some(value) => {
-                // Read from stdin
-                if value == "-" {
-                    let mut writer = Writer::to_file("infile.fa")?;
-                    let mut records = Reader::new(io::stdin()).records();
+        match matches.value_of("INFILE") {
+            Some(input) => match matches.value_of("output") {
+                Some(output) => {
+                    let destination = fs::OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open(output)?;
 
-                    while let Some(Ok(record)) = records.next() {
-                        writer.write_record(&record)?;
+                    if input == "-" {
+                        icgr::decode(io::stdin(), destination)?;
+                    } else {
+                        let source = fs::File::open(input)?;
+                        icgr::decode(source, destination)?;
                     }
-
-                    "infile.fa"
-
-                // Read from file
-                } else {
-                    value
-                }
-            }
-
-            // Read from stdin
-            None => {
-                let mut writer = Writer::to_file("infile.fa")?;
-                let mut records = Reader::new(io::stdin()).records();
-
-                while let Some(Ok(record)) = records.next() {
-                    writer.write_record(&record)?;
                 }
 
-                "infile.fa"
-            }
-        };
+                None => {
+                    if input == "-" {
+                        icgr::decode(io::stdin(), io::stdout())?;
+                    } else {
+                        let source = fs::File::open(input)?;
+                        icgr::decode(source, io::stdout())?;
+                    }
+                }
+            },
 
-        utils::decode_from_file(file, matches.value_of("output"))?;
+            None => match matches.value_of("output") {
+                Some(output) => {
+                    let destination = fs::OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open(output)?;
+
+                    icgr::decode(io::stdin(), destination)?;
+                }
+
+                None => {
+                    icgr::decode(io::stdin(), io::stdout())?;
+                }
+            },
+        }
 
     // Draw from sequence file ------------------------------------------------
     } else if let Some(matches) = matches.subcommand_matches("draw") {
+        let dir = tempdir()?;
+        let infile = dir.path().join("temporary.fa");
+        let ic = infile.clone();
+        let cc = ic.to_str();
+
         let file = match matches.value_of("INFILE") {
             Some(value) => {
                 // Read from stdin
                 if value == "-" {
-                    let mut writer = Writer::to_file("infile.fa")?;
-                    let mut records = Reader::new(io::stdin()).records();
+                    let mut writer = fasta::Writer::new(
+                        fs::OpenOptions::new()
+                            .append(true)
+                            .create(true)
+                            .open(infile)?,
+                    );
+                    let mut reader =
+                        fasta::Reader::new(io::BufReader::new(io::stdin()));
 
-                    while let Some(Ok(record)) = records.next() {
+                    for result in reader.records() {
+                        let record = result?;
+
                         writer.write_record(&record)?;
                     }
 
-                    "infile.fa"
+                    cc.unwrap().to_string()
 
-                // Read from file
+                // A file is specified, read from it...
                 } else {
-                    value
+                    value.to_string()
                 }
             }
 
             // Read from stdin
             None => {
-                let mut writer = Writer::to_file("infile.fa")?;
-                let mut records = Reader::new(io::stdin()).records();
+                let mut writer = fasta::Writer::new(
+                    fs::OpenOptions::new().append(true).open(infile)?,
+                );
+                let mut reader =
+                    fasta::Reader::new(io::BufReader::new(io::stdin()));
 
-                while let Some(Ok(record)) = records.next() {
+                for result in reader.records() {
+                    let record = result?;
+
                     writer.write_record(&record)?;
                 }
 
-                "infile.fa"
+                cc.unwrap().to_string()
             }
         };
 
-        utils::draw_from_file(file, matches.value_of("output"))?;
+        cgr::draw_from_file(&file, matches.value_of("output"))?;
     } else if let Some(matches) = matches.subcommand_matches("compare") {
         let folder = matches
             .value_of("INDIR")
@@ -152,21 +190,21 @@ fn main() -> Result<()> {
             .map(|x| x.as_str())
             .all(|file| path::Path::new(file).extension().unwrap() == "png")
         {
-            utils::compare_images(files, matches.value_of("output"))?;
+            cgr::compare_images(files, matches.value_of("output"))?;
         } else if files.iter().map(|x| x.as_str()).all(|file| {
             path::Path::new(file).extension().unwrap() == "fa"
                 || path::Path::new(file).extension().unwrap() == "fas"
                 || path::Path::new(file).extension().unwrap() == "fasta"
         }) {
             for fi in files {
-                utils::draw_from_file(&fi, Some("temp"))?;
+                cgr::draw_from_file(&fi, Some("temp"))?;
             }
 
             let imgs = fs::read_dir("temp")?
                 .map(|res| res.map(|e| e.path().to_str().unwrap().to_string()))
                 .collect::<Result<Vec<_>, io::Error>>()?;
 
-            utils::compare_images(imgs, matches.value_of("output"))?;
+            cgr::compare_images(imgs, matches.value_of("output"))?;
         } else {
             println!("Supplied files are not images nor sequences");
             std::process::exit(exitcode::DATAERR);

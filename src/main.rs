@@ -3,12 +3,16 @@
 // This file may not be copied, modified, or distributed except according
 // to those terms.
 
+extern crate anyhow;
+extern crate bio;
+
 use std::env;
 use std::fs;
 use std::io;
 use std::path;
 
 use anyhow::{anyhow, Context, Result};
+use bio::io::fasta::{Reader, Writer};
 
 mod app;
 mod utils;
@@ -29,25 +33,109 @@ fn main() -> Result<()> {
 
     // Encode mode ------------------------------------------------------------
     if let Some(matches) = matches.subcommand_matches("encode") {
-        let file = matches
-            .value_of("INFILE")
-            .with_context(|| anyhow!("Could not find input file"))?;
+        let file = match matches.value_of("INFILE") {
+            Some(value) => {
+                // Read from stdin
+                if value == "-" {
+                    let mut writer = Writer::to_file("infile.fa")?;
+                    let mut records = Reader::new(io::stdin()).records();
+
+                    while let Some(Ok(record)) = records.next() {
+                        writer.write_record(&record)?;
+                    }
+
+                    "infile.fa"
+
+                // Read from file
+                } else {
+                    value
+                }
+            }
+
+            // Read from stdin
+            None => {
+                let mut writer = Writer::to_file("infile.fa")?;
+                let mut records = Reader::new(io::stdin()).records();
+
+                while let Some(Ok(record)) = records.next() {
+                    writer.write_record(&record)?;
+                }
+
+                "infile.fa"
+            }
+        };
 
         utils::encode_from_file(file, matches.value_of("output"))?;
 
     // Decode mode ------------------------------------------------------------
     } else if let Some(matches) = matches.subcommand_matches("decode") {
-        let file = matches
-            .value_of("INFILE")
-            .with_context(|| anyhow!("Could not find input file"))?;
+        let file = match matches.value_of("INFILE") {
+            Some(value) => {
+                // Read from stdin
+                if value == "-" {
+                    let mut writer = Writer::to_file("infile.fa")?;
+                    let mut records = Reader::new(io::stdin()).records();
+
+                    while let Some(Ok(record)) = records.next() {
+                        writer.write_record(&record)?;
+                    }
+
+                    "infile.fa"
+
+                // Read from file
+                } else {
+                    value
+                }
+            }
+
+            // Read from stdin
+            None => {
+                let mut writer = Writer::to_file("infile.fa")?;
+                let mut records = Reader::new(io::stdin()).records();
+
+                while let Some(Ok(record)) = records.next() {
+                    writer.write_record(&record)?;
+                }
+
+                "infile.fa"
+            }
+        };
 
         utils::decode_from_file(file, matches.value_of("output"))?;
 
     // Draw from sequence file ------------------------------------------------
     } else if let Some(matches) = matches.subcommand_matches("draw") {
-        let file = matches
-            .value_of("INFILE")
-            .with_context(|| anyhow!("Could not find input file"))?;
+        let file = match matches.value_of("INFILE") {
+            Some(value) => {
+                // Read from stdin
+                if value == "-" {
+                    let mut writer = Writer::to_file("infile.fa")?;
+                    let mut records = Reader::new(io::stdin()).records();
+
+                    while let Some(Ok(record)) = records.next() {
+                        writer.write_record(&record)?;
+                    }
+
+                    "infile.fa"
+
+                // Read from file
+                } else {
+                    value
+                }
+            }
+
+            // Read from stdin
+            None => {
+                let mut writer = Writer::to_file("infile.fa")?;
+                let mut records = Reader::new(io::stdin()).records();
+
+                while let Some(Ok(record)) = records.next() {
+                    writer.write_record(&record)?;
+                }
+
+                "infile.fa"
+            }
+        };
 
         utils::draw_from_file(file, matches.value_of("output"))?;
     } else if let Some(matches) = matches.subcommand_matches("compare") {

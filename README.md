@@ -9,7 +9,7 @@
     <img src="https://img.shields.io/crates/v/fastchaos.svg?style=flat">
 </a>
 <a href="https://codecov.io/gh/Ebedthan/fastchaos">
-    <img src="https://codecov.io/gh/Ebedthan/fastchaos/branch/main/graph/badge.svg">
+    <img src="https://codecov.io/gh/Ebedthan/fastchaos/branch/main/graph/badge.svg?token=K7VN5TH6EZ"/>
 </a>
 <a href="https://github.com/Ebedthan/fastchaos/blob/master/LICENSE">
     <img src="https://img.shields.io/badge/license-MIT-blue?style=flat">

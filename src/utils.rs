@@ -96,4 +96,47 @@ mod tests {
 
         assert!(diff > 0.009, "{}", diff);
     }
+
+    #[test]
+    fn image_gray() {
+        let attr = Dssim::new();
+
+        let g1 = load_image(&attr, "tests/gray1-rgba.png").unwrap();
+        let g2 = load_image(&attr, "tests/gray1-pal.png").unwrap();
+        let g3 = load_image(&attr, "tests/gray1-gray.png").unwrap();
+        let g4 = load_image(&attr, "tests/gray1.jpg").unwrap();
+
+        let (diff, _) = attr.compare(&g1, g2);
+        assert!(diff < 0.00001);
+
+        let (diff, _) = attr.compare(&g1, g3);
+        assert!(diff < 0.00001);
+
+        let (diff, _) = attr.compare(&g1, g4);
+        assert!(diff < 0.00006);
+    }
+
+    #[test]
+    fn image_gray_profile() {
+        let attr = Dssim::new();
+
+        let gp1 = load_image(&attr, "tests/gray-profile.png").unwrap();
+        let gp2 = load_image(&attr, "tests/gray-profile2.png").unwrap();
+        let gp3 = load_image(&attr, "tests/gray-profile.jpg").unwrap();
+
+        let (diff, _) = attr.compare(&gp1, gp2);
+        assert!(diff < 0.0003, "{}", diff);
+
+        let (diff, _) = attr.compare(&gp1, gp3);
+        assert!(diff < 0.0003, "{}", diff);
+    }
+
+    #[test]
+    fn rgblu_input() {
+        let ctx = Dssim::new();
+        let im: ImgVec<RGBLU> =
+            Img::new(vec![export::rgb::RGB::new(0., 0., 0.)], 1, 1);
+        let imr: ImgRef<'_, RGBLU> = im.as_ref();
+        ctx.create_image(&imr);
+    }
 }

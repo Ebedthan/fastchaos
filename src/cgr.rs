@@ -19,6 +19,7 @@ use anyhow::Result;
 use itertools::Itertools;
 use noodles::fasta;
 use plotters::prelude::*;
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::utils;
@@ -136,7 +137,7 @@ pub fn compare_images(images: Vec<String>, out: Option<&str>) -> Result<()> {
     let attr = dssim_core::Dssim::new();
 
     let files = images
-        .iter()
+        .par_iter()
         .map(|file| -> Result<_, String> {
             let image = utils::load_image(&attr, &file)
                 .map_err(|e| format!("Cannot load {}, because: {}", file, e))?;
@@ -154,11 +155,19 @@ pub fn compare_images(images: Vec<String>, out: Option<&str>) -> Result<()> {
 
     let it = files.into_iter().combinations_with_replacement(2);
 
+    let mut itter = Vec::new();
     for combination in it {
+        if combination[0].0 != combination[1].0 {
+            itter.push(combination);
+        }
+    }
+
+    for combination in itter {
         if combination[0].1.width() != combination[1].1.width()
             || combination[0].1.height() != combination[1].1.height()
         {
-            println!(
+            writeln!(
+                io::stderr(),
                 "Image {} has a different size ({}x{}) than {} ({}x{})\n",
                 combination[0].0,
                 combination[0].1.width(),
@@ -166,7 +175,7 @@ pub fn compare_images(images: Vec<String>, out: Option<&str>) -> Result<()> {
                 combination[1].0,
                 combination[1].1.width(),
                 combination[1].1.height()
-            );
+            )?;
         }
 
         let (dssim, _) = attr.compare(&combination[0].1, &combination[1].1);
@@ -184,6 +193,7 @@ pub fn compare_images(images: Vec<String>, out: Option<&str>) -> Result<()> {
                 .create(true)
                 .open(filename)
                 .expect("Cannot open file");
+
             for data in res {
                 file.write_all(
                     format!("{}\t{}\t{:.8}\n", data.0, data.1, data.2)

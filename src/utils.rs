@@ -74,4 +74,26 @@ fn load(attr: &Dssim, path: &Path) -> Result<DssimImage<f32>, lodepng::Error> {
 
 // Tests -------------------------------------------
 #[cfg(test)]
-mod tests {}
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_load_image() {
+        let attr = Dssim::new();
+        let prof_jpg = load_image(&attr, "tests/profile.jpg").unwrap();
+        let prof_png = load_image(&attr, "tests/profile.png").unwrap();
+        let (diff, _) = attr.compare(&prof_jpg, prof_png);
+        assert!(diff <= 0.002);
+
+        let strip_jpg =
+            load_image(&attr, "tests/profile-stripped.jpg").unwrap();
+        let (diff, _) = attr.compare(&strip_jpg, prof_jpg);
+        assert!(diff > 0.008, "{}", diff);
+
+        let strip_png =
+            load_image(&attr, "tests/profile-stripped.png").unwrap();
+        let (diff, _) = attr.compare(&strip_jpg, strip_png);
+
+        assert!(diff > 0.009, "{}", diff);
+    }
+}

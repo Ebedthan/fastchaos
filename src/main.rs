@@ -8,7 +8,7 @@ extern crate clap;
 
 use std::env;
 use std::fs;
-use std::io;
+use std::io::{self, Write};
 use std::path::{self, PathBuf};
 
 use anyhow::{anyhow, Context, Result};
@@ -30,7 +30,7 @@ fn main() -> Result<()> {
         .num_threads(num_threads)
         .build_global()?;
 
-    // Encode mode ------------------------------------------------------------
+    // Encode subcommand ------------------------------------------------------
     if let Some(matches) = matches.subcommand_matches("encode") {
         match matches.value_of("INFILE") {
             Some(input) => match matches.value_of("output") {
@@ -74,7 +74,7 @@ fn main() -> Result<()> {
             },
         }
 
-    // Decode mode ------------------------------------------------------------
+    // Decode subcommand ------------------------------------------------------
     } else if let Some(matches) = matches.subcommand_matches("decode") {
         match matches.value_of("INFILE") {
             Some(input) => match matches.value_of("output") {
@@ -118,7 +118,7 @@ fn main() -> Result<()> {
             },
         }
 
-    // Draw from sequence file ------------------------------------------------
+    // Draw subcommand --------------------------------------------------------
     } else if let Some(matches) = matches.subcommand_matches("draw") {
         match matches.value_of("INFILE") {
             Some(input) => match matches.value_of("output") {
@@ -155,6 +155,8 @@ fn main() -> Result<()> {
                 }
             },
         }
+
+    // Compare subcommand -----------------------------------------------------
     } else if let Some(matches) = matches.subcommand_matches("compare") {
         let folder = matches
             .value_of("INDIR")
@@ -186,7 +188,10 @@ fn main() -> Result<()> {
 
             cgr::compare_images(imgs, matches.value_of("output"))?;
         } else {
-            println!("Supplied files are not images nor sequences");
+            writeln!(
+                io::stderr(),
+                "Supplied files are not images nor sequences"
+            )?;
             std::process::exit(exitcode::DATAERR);
         }
     }

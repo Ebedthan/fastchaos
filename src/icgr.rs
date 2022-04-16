@@ -21,7 +21,7 @@ use serde::{Deserialize, Serialize};
 use zstd::stream;
 
 /// The Integer Chaos Game Representation Format ------------------------------
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct IChaos {
     /// A DNA sequence ID: all characters before first whitespace in sequence header
     id: String,
@@ -34,7 +34,8 @@ pub struct IChaos {
 }
 
 impl IChaos {
-    fn length(&mut self) -> usize {
+    #[inline]
+    fn length(&self) -> usize {
         self.icgrs.par_iter().map(|x| x.n).sum()
     }
 
@@ -48,11 +49,12 @@ impl IChaos {
         )
     }
 
+    #[inline]
     fn to_json(&self) -> String {
         serde_json::to_string(self).expect("Cannot convert IChaos to JSON")
     }
 
-    fn decode_icgr(&mut self) -> Vec<u8> {
+    fn decode_icgr(&self) -> Vec<u8> {
         let mut complete_dna = Vec::with_capacity(self.length());
 
         for icgr in &self.icgrs {
@@ -228,7 +230,7 @@ impl Icgr {
 fn from_record(record: fasta::Record) -> IChaos {
     IChaos {
         id: record.name().to_string(),
-        desc: Some(record.description().unwrap().to_string()),
+        desc: Some(record.description().unwrap_or("").to_string()),
         icgrs: Icgr::from_sequence(record.sequence().as_ref()),
     }
 }
@@ -262,7 +264,7 @@ fn get_cgr_vertex(x: i128, y: i128) -> Result<(i128, i128)> {
 }
 
 #[inline]
-pub fn str_chunks<'a>(
+fn str_chunks<'a>(
     s: &'a str,
     n: usize,
 ) -> Box<dyn Iterator<Item = &'a str> + 'a> {
@@ -323,4 +325,112 @@ pub fn decode<R: io::Read, W: io::Write>(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_nucleotide() {
+        assert_eq!(get_nucleotide(1_i128, 1_i128).unwrap(), 'A');
+        assert_eq!(get_nucleotide(1_i128, -1_i128).unwrap(), 'G');
+        assert_eq!(get_nucleotide(-1_i128, -1_i128).unwrap(), 'C');
+        assert_eq!(get_nucleotide(-1_i128, 1_i128).unwrap(), 'T');
+        assert_eq!(get_nucleotide(0_i128, 0_i128).unwrap(), 'N');
+    }
+
+    #[test]
+    fn test_get_cgr_vertex() {
+        assert_eq!(get_cgr_vertex(1_i128, 1_i128).unwrap(), (1, 1));
+        assert_eq!(get_cgr_vertex(1_i128, -1_i128).unwrap(), (1, -1));
+        assert_eq!(get_cgr_vertex(-1_i128, 1_i128).unwrap(), (-1, 1));
+        assert_eq!(get_cgr_vertex(-1_i128, -1_i128).unwrap(), (-1, -1));
+        assert_eq!(get_cgr_vertex(0_i128, 0_i128).unwrap(), (0, 0));
+    }
+
+    #[test]
+    fn test_from_record() {
+        let seq = fasta::Record::new(
+            fasta::record::Definition::new("sq0", None),
+            fasta::record::Sequence::from(b"ATTGCCGTAA".to_vec()),
+        );
+
+        assert_eq!(
+            from_record(seq),
+            IChaos {
+                id: "sq0".to_string(),
+                desc: Some(String::from("")),
+                icgrs: vec![Icgr {
+                    x: "659".to_string(),
+                    y: "783".to_string(),
+                    n: 10
+                }]
+            }
+        );
+    }
+
+    #[test]
+    fn test_ichaos() {
+        let ichaos = IChaos {
+            id: "sq0".to_string(),
+            desc: Some(String::from("")),
+            icgrs: vec![Icgr {
+                x: "659".to_string(),
+                y: "783".to_string(),
+                n: 10,
+            }],
+        };
+
+        assert_eq!(ichaos.length(), 10);
+        assert_eq!(
+            ichaos.to_fasta(),
+            fasta::Record::new(
+                fasta::record::Definition::new("sq0", Some("".to_string())),
+                fasta::record::Sequence::from(b"ATTGCCGTAA".to_vec()),
+            )
+        );
+        assert_eq!(
+            ichaos.to_json(),
+            "{\"id\":\"sq0\",\"desc\":\"\",\"icgrs\":[{\"x\":\"659\",\"y\":\"783\",\"n\":10}]}".to_string()
+        );
+
+        assert_eq!(ichaos.decode_icgr(), b"ATTGCCGTAA".to_vec());
+    }
+
+    #[test]
+    fn test_from_sequence() {
+        let ichaos = IChaos {
+            id: "sq0".to_string(),
+            desc: Some(String::from("")),
+            icgrs: vec![Icgr {
+                x: "659".to_string(),
+                y: "783".to_string(),
+                n: 10,
+            }],
+        };
+
+        assert_eq!(Icgr::from_sequence(b"ATTGCCGTAA"), ichaos.icgrs);
+    }
+
+    #[test]
+    fn test_encode_decode() {
+        let file =
+            std::fs::File::open("tests/homo_sapiens_mitochondrion.fa").unwrap();
+
+        let destination = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open("homo.icgr")
+            .unwrap();
+
+        assert!(encode(&file, &destination).is_ok());
+        assert!(decode(
+            std::fs::File::open("homo.icgr").unwrap(),
+            io::stdout()
+        )
+        .is_ok());
+
+        std::fs::remove_file("homo.icgr").unwrap();
+    }
 }

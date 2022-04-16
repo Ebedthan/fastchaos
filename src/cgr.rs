@@ -10,9 +10,9 @@ extern crate plotters;
 extern crate rayon;
 extern crate serde;
 
-use std::fs;
 use std::io::{self, BufReader, Write};
 use std::path::PathBuf;
+use std::process;
 use std::str;
 
 use anyhow::Result;
@@ -25,7 +25,7 @@ use serde::{Deserialize, Serialize};
 use crate::utils;
 
 /// The Chaos Game Representation Format --------------------------------------
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Chaos {
     /// A DNA sequence ID: all characters before first whitespace in sequence header
     id: String,
@@ -132,8 +132,8 @@ pub fn draw<R: io::Read>(source: R, destination: PathBuf) -> Result<()> {
     Ok(())
 }
 
-pub fn compare_images(images: Vec<String>, out: Option<&str>) -> Result<()> {
-    let mut res = Vec::new();
+pub fn compare_images(images: Vec<String>) -> Vec<(String, String, f64)> {
+    let mut result = Vec::new();
     let attr = dssim_core::Dssim::new();
 
     let files = images
@@ -155,14 +155,7 @@ pub fn compare_images(images: Vec<String>, out: Option<&str>) -> Result<()> {
 
     let it = files.into_iter().combinations_with_replacement(2);
 
-    let mut itter = Vec::new();
     for combination in it {
-        if combination[0].0 != combination[1].0 {
-            itter.push(combination);
-        }
-    }
-
-    for combination in itter {
         if combination[0].1.width() != combination[1].1.width()
             || combination[0].1.height() != combination[1].1.height()
         {
@@ -175,43 +168,80 @@ pub fn compare_images(images: Vec<String>, out: Option<&str>) -> Result<()> {
                 combination[1].0,
                 combination[1].1.width(),
                 combination[1].1.height()
-            )?;
+            )
+            .expect("Cannot write to stderr");
+            process::exit(exitcode::DATAERR);
         }
 
         let (dssim, _) = attr.compare(&combination[0].1, &combination[1].1);
-        res.push((
+        result.push((
             combination[0].0.to_string(),
             combination[1].0.to_string(),
             f64::from(dssim),
         ));
     }
 
-    match out {
-        Some(filename) => {
-            let mut file = fs::OpenOptions::new()
-                .append(true)
-                .create(true)
-                .open(filename)
-                .expect("Cannot open file");
+    result
+}
 
-            for data in res {
-                file.write_all(
-                    format!("{}\t{}\t{:.8}\n", data.0, data.1, data.2)
-                        .as_bytes(),
-                )
-                .expect("Cannot write to file");
-            }
-        }
-        None => {
-            for data in res {
-                writeln!(
-                    io::stdout(),
-                    "{}\t{}\t{:.8}", data.0, data.1, data.2,
-                )
-                .expect("Cannot write to file");
-            }
-        }
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use super::*;
+
+    #[test]
+    fn test_dna_to_chaos() {
+        let seq = fasta::Record::new(
+            fasta::record::Definition::new("sq0", None),
+            fasta::record::Sequence::from(b"TAGCA".to_vec()),
+        );
+
+        assert_eq!(
+            Chaos {
+                id: "sq0".to_string(),
+                cgrs: vec![
+                    (-0.5000_f64, 0.5000_f64),
+                    (0.2500_f64, 0.7500_f64),
+                    (0.6250_f64, -0.1250_f64),
+                    (-0.1875_f64, -0.5625_f64),
+                    (0.40625_f64, 0.21875_f64)
+                ]
+            },
+            seq.record_to_chaos()
+        );
     }
 
-    Ok(())
+    #[test]
+    fn test_draw_and_compare() {
+        let odir = "temp";
+        let chaos = Chaos {
+            id: "sq0".to_string(),
+            cgrs: vec![
+                (-0.5000_f64, 0.5000_f64),
+                (0.2500_f64, 0.7500_f64),
+                (0.6250_f64, -0.1250_f64),
+                (-0.1875_f64, -0.5625_f64),
+                (0.40625_f64, 0.21875_f64),
+            ],
+        };
+
+        let mut ot = PathBuf::from(odir);
+        std::fs::create_dir(&ot).unwrap();
+        ot.push("sq0_cgr.png");
+
+        chaos.draw(&PathBuf::from(odir)).unwrap();
+        let gr = compare_images(vec![ot.to_str().unwrap().to_string()]);
+
+        assert_eq!(
+            gr,
+            vec![(
+                ot.to_str().unwrap().to_string(),
+                ot.to_str().unwrap().to_string(),
+                0_f64
+            )]
+        );
+
+        fs::remove_dir_all(&ot.parent().unwrap()).unwrap();
+    }
 }

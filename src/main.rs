@@ -171,7 +171,39 @@ fn main() -> Result<()> {
             .map(|x| x.as_str())
             .all(|file| path::Path::new(file).extension().unwrap() == "png")
         {
-            cgr::compare_images(files, matches.value_of("output"))?;
+            match matches.value_of("output") {
+                Some(filename) => {
+                    let mut file = fs::OpenOptions::new()
+                        .append(true)
+                        .create(true)
+                        .open(filename)
+                        .expect("Cannot open file");
+
+                    let result = cgr::compare_images(files);
+
+                    for data in result {
+                        file.write_all(
+                            format!("{}\t{}\t{:.8}\n", data.0, data.1, data.2)
+                                .as_bytes(),
+                        )
+                        .expect("Cannot write to file");
+                    }
+                }
+                None => {
+                    let result = cgr::compare_images(files);
+
+                    for data in result {
+                        writeln!(
+                            io::stdout(),
+                            "{}\t{}\t{:.8}",
+                            data.0,
+                            data.1,
+                            data.2,
+                        )
+                        .expect("Cannot write to file");
+                    }
+                }
+            }
         } else if files.iter().map(|x| x.as_str()).all(|file| {
             path::Path::new(file).extension().unwrap() == "fa"
                 || path::Path::new(file).extension().unwrap() == "fas"
@@ -186,7 +218,39 @@ fn main() -> Result<()> {
                 .map(|res| res.map(|e| e.path().to_str().unwrap().to_string()))
                 .collect::<Result<Vec<_>, io::Error>>()?;
 
-            cgr::compare_images(imgs, matches.value_of("output"))?;
+            match matches.value_of("output") {
+                Some(filename) => {
+                    let mut file = fs::OpenOptions::new()
+                        .append(true)
+                        .create(true)
+                        .open(filename)
+                        .expect("Cannot open file");
+
+                    let result = cgr::compare_images(imgs);
+
+                    for data in result {
+                        file.write_all(
+                            format!("{}\t{}\t{:.8}\n", data.0, data.1, data.2)
+                                .as_bytes(),
+                        )
+                        .expect("Cannot write to file");
+                    }
+                }
+                None => {
+                    let result = cgr::compare_images(imgs);
+
+                    for data in result {
+                        writeln!(
+                            io::stdout(),
+                            "{}\t{}\t{:.8}",
+                            data.0,
+                            data.1,
+                            data.2,
+                        )
+                        .expect("Cannot write to file");
+                    }
+                }
+            }
         } else {
             writeln!(
                 io::stderr(),

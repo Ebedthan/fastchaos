@@ -10,11 +10,9 @@ extern crate tempfile;
 use std::env;
 use std::fs;
 use std::io;
-use std::path;
+use std::path::{self, PathBuf};
 
 use anyhow::{anyhow, Context, Result};
-use noodles::fasta;
-use tempfile::tempdir;
 
 mod app;
 mod cgr;
@@ -125,57 +123,41 @@ fn main() -> Result<()> {
 
     // Draw from sequence file ------------------------------------------------
     } else if let Some(matches) = matches.subcommand_matches("draw") {
-        let dir = tempdir()?;
-        let infile = dir.path().join("temporary.fa");
-        let ic = infile.clone();
-        let cc = ic.to_str();
+        match matches.value_of("INFILE") {
+            Some(input) => match matches.value_of("output") {
+                Some(output) => {
+                    let destination = PathBuf::from(output);
 
-        let file = match matches.value_of("INFILE") {
-            Some(value) => {
-                // Read from stdin
-                if value == "-" {
-                    let mut writer = fasta::Writer::new(
-                        fs::OpenOptions::new()
-                            .append(true)
-                            .create(true)
-                            .open(infile)?,
-                    );
-                    let mut reader =
-                        fasta::Reader::new(io::BufReader::new(io::stdin()));
-
-                    for result in reader.records() {
-                        let record = result?;
-
-                        writer.write_record(&record)?;
+                    if input == "-" {
+                        cgr::draw(io::stdin(), destination)?;
+                    } else {
+                        let source = fs::File::open(input)?;
+                        cgr::draw(source, destination)?;
                     }
-
-                    cc.unwrap().to_string()
-
-                // A file is specified, read from it...
-                } else {
-                    value.to_string()
-                }
-            }
-
-            // Read from stdin
-            None => {
-                let mut writer = fasta::Writer::new(
-                    fs::OpenOptions::new().append(true).open(infile)?,
-                );
-                let mut reader =
-                    fasta::Reader::new(io::BufReader::new(io::stdin()));
-
-                for result in reader.records() {
-                    let record = result?;
-
-                    writer.write_record(&record)?;
                 }
 
-                cc.unwrap().to_string()
-            }
-        };
+                None => {
+                    if input == "-" {
+                        cgr::draw(io::stdin(), PathBuf::from("."))?;
+                    } else {
+                        let source = fs::File::open(input)?;
+                        cgr::draw(source, PathBuf::from("."))?;
+                    }
+                }
+            },
 
-        cgr::draw_from_file(&file, matches.value_of("output"))?;
+            None => match matches.value_of("output") {
+                Some(output) => {
+                    let destination = PathBuf::from(output);
+
+                    cgr::draw(io::stdin(), destination)?;
+                }
+
+                None => {
+                    cgr::draw(io::stdin(), PathBuf::from("."))?;
+                }
+            },
+        }
     } else if let Some(matches) = matches.subcommand_matches("compare") {
         let folder = matches
             .value_of("INDIR")
@@ -197,7 +179,8 @@ fn main() -> Result<()> {
                 || path::Path::new(file).extension().unwrap() == "fasta"
         }) {
             for fi in files {
-                cgr::draw_from_file(&fi, Some("temp"))?;
+                let source = fs::File::open(fi)?;
+                cgr::draw(source, PathBuf::from("temp"))?;
             }
 
             let imgs = fs::read_dir("temp")?
@@ -211,5 +194,5 @@ fn main() -> Result<()> {
         }
     }
 
-    Ok(())
+    std::process::exit(exitcode::OK)
 }

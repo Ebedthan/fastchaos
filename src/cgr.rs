@@ -12,7 +12,6 @@ extern crate serde;
 
 use std::fs;
 use std::io::{self, BufReader, Write};
-use std::path::Path;
 use std::path::PathBuf;
 use std::str;
 
@@ -35,21 +34,9 @@ pub struct Chaos {
 }
 
 impl Chaos {
-    /// Draw a Chaos Game Representation image of a DNA sequence
-    ///
-    /// # Arguments
-    ///
-    /// * `out` - A path to which image will be written
-    ///
-    /// # Examples
-    ///
-    /// ```
-    ///
-    /// ```
-    ///
-    fn draw(&self, out: &str) -> Result<()> {
-        let mut opath = PathBuf::from(out);
+    fn draw(&self, outdir: &PathBuf) -> Result<()> {
         let png = format!("{}_cgr.png", self.id);
+        let mut opath = PathBuf::from(outdir);
         opath.push(png);
 
         let root_area =
@@ -127,45 +114,21 @@ impl DnaToChaos for fasta::Record {
     }
 }
 
-pub fn draw_from_file(file: &str, out: Option<&str>) -> Result<()> {
-    let mut reader = fs::File::open(file)
-        .map(BufReader::new)
-        .map(fasta::Reader::new)?;
+pub fn draw<R: io::Read>(source: R, destination: PathBuf) -> Result<()> {
+    let mut reader = fasta::Reader::new(BufReader::new(source));
 
-    match out {
-        Some(dirname) => {
-            if !Path::new(dirname).exists() {
-                fs::create_dir(dirname)?;
-            }
-            let mut chaos: Vec<Chaos> = Vec::new();
+    for result in reader.records() {
+        // Unwrap record
+        let record = result?;
 
-            for result in reader.records() {
-                let record = result?;
-                chaos.push(record.record_to_chaos());
-            }
+        // Convert record to chaos
+        let chaos = record.record_to_chaos();
 
-            for chao in chaos {
-                chao.draw(dirname).expect("Cannot draw figure");
-                println!("Done drawing {}", &chao.id);
-            }
-
-            Ok(())
-        }
-        None => {
-            let mut chaos: Vec<Chaos> = Vec::new();
-
-            for result in reader.records() {
-                let record = result?;
-                chaos.push(record.record_to_chaos());
-            }
-
-            for chao in chaos {
-                chao.draw(".").expect("Cannot draw figure");
-            }
-
-            Ok(())
-        }
+        // Draw CGR of chao
+        chaos.draw(&destination)?;
     }
+
+    Ok(())
 }
 
 pub fn compare_images(images: Vec<String>, out: Option<&str>) -> Result<()> {

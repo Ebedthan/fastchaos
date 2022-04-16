@@ -5,6 +5,8 @@
 
 extern crate anyhow;
 extern crate dssim_core;
+extern crate imgref;
+extern crate load_image;
 
 use std::path::Path;
 

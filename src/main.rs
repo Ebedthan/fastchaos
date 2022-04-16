@@ -4,8 +4,7 @@
 // to those terms.
 
 extern crate anyhow;
-extern crate noodles;
-extern crate tempfile;
+extern crate clap;
 
 use std::env;
 use std::fs;
@@ -24,10 +23,8 @@ fn main() -> Result<()> {
     let matches = app::build_app().get_matches_from(env::args_os());
 
     let num_threads: usize = matches
-        .value_of("threads")
-        .unwrap_or("1")
-        .parse::<usize>()
-        .unwrap();
+        .value_of_t("threads")
+        .unwrap_or_else(|error| error.exit());
 
     rayon::ThreadPoolBuilder::new()
         .num_threads(num_threads)

@@ -84,6 +84,7 @@ pub fn build_app() -> Command<'static> {
                     .short('t')
                     .value_name("INT")
                     .help("number of threads")
+                    .default_value("1")
                     .takes_value(true));
 
     app

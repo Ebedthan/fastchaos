@@ -69,23 +69,21 @@ fastchaos compare images_dir
 
 For full details, do `fastchaos -h`.
 
-## 4 - Requirements
+### Requirements
 - [Rust](https://rust-lang.org) in stable channel
 
 
-
-## 5 - Minimum Rust version policy
+### Minimum Rust version policy
 This crate's minimum supported `rustc` version is `1.57.0`.
 
 
-## 6 - Note
+### Note
 fastchaos use colored output in help, nevertheless fastchaos honors [NO_COLORS](https://no-color.org/) environment variable.
 
 
-## 7 - Bugs
+### Bugs
 Submit problems or requests to the [Issue Tracker](https://github.com/Ebedthan/fastchaos/issues).
 
 
-## 8 - License
-* 
-*
+### License
+Licensed under the MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT).

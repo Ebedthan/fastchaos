@@ -1,9 +1,9 @@
 # fastchaos
 <a href="https://github.com/Ebedthan/fastchaos/actions?query=workflow%3A%22Continuous+Integration%22">
-    <img src="https://img.shields.io/github/workflow/status/Ebedthan/fastchaos/Continuous%20Integration?style=flat&logo=GitHub%20Actions">
+    <img src="https://img.shields.io/github/actions/workflow/status/Ebedthan/fastchaos/ci.yml?style=flat&logo=GitHub%20Actions&branch=main">
 </a>
 <a href="https://github.com/Ebedthan/fastchaos/actions?query=workflow%3A%22Continuous+Deployment%22">
-    <img src="https://img.shields.io/github/workflow/status/Ebedthan/fastchaos/Continuous%20Deployment?style=flat&logo=GitHub%20Actions&label=deploy">
+    <img src="https://img.shields.io/github/actions/workflow/status/Ebedthan/fastchaos/cd.yml?style=flat&logo=GitHub%20Actions&label=deploy&branch=main">
 </a>
 <a href="https://crates.io/crates/fastchaos">
     <img src="https://img.shields.io/crates/v/fastchaos.svg?style=flat">

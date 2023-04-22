@@ -30,6 +30,12 @@ pub fn build_app() -> Command {
                         .required(true)
                         .value_parser(value_parser!(PathBuf)),
                     )
+                    .arg(Arg::new("keep")
+                        .help("keep (don't delete) input file")
+                        .long("keep")
+                        .short('k')
+                        .action(ArgAction::SetTrue),
+                    )
                 )
                 .subcommand(Command::new("decode")
                     .about("Decode a sequence integer Chaos Game Representation to DNA")
@@ -53,6 +59,12 @@ pub fn build_app() -> Command {
                         .help("keep (don't delete) input file")
                         .long("keep")
                         .short('k')
+                        .action(ArgAction::SetTrue),
+                    )
+                    .arg(Arg::new("force")
+                        .help("force overwriting input file")
+                        .long("force")
+                        .short('f')
                         .action(ArgAction::SetTrue),
                     )
                 )

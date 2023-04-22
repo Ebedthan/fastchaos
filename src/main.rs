@@ -44,6 +44,10 @@ fn main() -> Result<()> {
         let source = fs::File::open(input)?;
         icgr::encode(source, destination)?;
 
+        if !matches.get_flag("keep") {
+            fs::remove_file(input)?;
+        }
+
     // Decode subcommand ------------------------------------------------------
     } else if let Some(matches) = matches.subcommand_matches("decode") {
         let input = matches.get_one::<PathBuf>("INFILE").unwrap();
@@ -56,81 +60,61 @@ fn main() -> Result<()> {
         }
         match matches.get_one::<PathBuf>("output") {
             Some(output) => {
-                if Path::new(output).exists() {
+                if Path::new(output).exists() && !matches.get_flag("force") {
                     eprintln!(
                         "error: cannot decode to '{:?}', file already exists",
                         output
                     );
                     std::process::exit(1);
-                }
-                let destination = fs::OpenOptions::new()
-                    .create(true)
-                    .append(true)
-                    .open(output)?;
+                } else {
+                    let destination = fs::OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open(output)?;
 
-                let source = fs::File::open(input)?;
-                icgr::decode(source, destination)?;
+                    let source = fs::File::open(input)?;
+                    icgr::decode(source, destination)?;
+                }
             }
             None => {
                 let output = input.as_path().with_extension("cgr");
-                if output.exists() {
+                if output.exists() && !matches.get_flag("force") {
                     eprintln!(
                         "error: cannot decode to {:?}, file already exists",
                         output
                     );
                     std::process::exit(1);
-                }
-                let destination = fs::OpenOptions::new()
-                    .create(true)
-                    .append(true)
-                    .open(output)?;
+                } else {
+                    let destination = fs::OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open(output)?;
 
-                let source = fs::File::open(input)?;
-                icgr::decode(source, destination)?;
+                    let source = fs::File::open(input)?;
+                    icgr::decode(source, destination)?;
+                }
             }
         }
 
         // Delete cgr file if not otherwise specified
         if !matches.get_flag("keep") {
-            std::fs::remove_file(input)?;
+            fs::remove_file(input)?;
         }
 
     // Draw subcommand --------------------------------------------------------
     } else if let Some(matches) = matches.subcommand_matches("draw") {
-        match matches.get_one::<String>("INFILE") {
-            Some(input) => match matches.get_one::<String>("output") {
-                Some(output) => {
-                    let destination = PathBuf::from(output);
+        let input = matches.get_one::<PathBuf>("INFILE").unwrap();
+        match matches.get_one::<String>("output") {
+            Some(output) => {
+                let destination = PathBuf::from(output);
+                let source = fs::File::open(input)?;
+                cgr::draw(source, destination)?;
+            }
 
-                    if input == "-" {
-                        cgr::draw(io::stdin(), destination)?;
-                    } else {
-                        let source = fs::File::open(input)?;
-                        cgr::draw(source, destination)?;
-                    }
-                }
-
-                None => {
-                    if input == "-" {
-                        cgr::draw(io::stdin(), PathBuf::from("."))?;
-                    } else {
-                        let source = fs::File::open(input)?;
-                        cgr::draw(source, PathBuf::from("."))?;
-                    }
-                }
-            },
-
-            None => match matches.get_one::<String>("output") {
-                Some(output) => {
-                    let destination = PathBuf::from(output);
-
-                    cgr::draw(io::stdin(), destination)?;
-                }
-
-                None => {
-                    cgr::draw(io::stdin(), PathBuf::from("."))?;
-                }
-            },
+            None => {
+                let source = fs::File::open(input)?;
+                cgr::draw(source, PathBuf::from("."))?;
+            }
         }
 
     // Compare subcommand -----------------------------------------------------
@@ -233,9 +217,9 @@ fn main() -> Result<()> {
                 io::stderr(),
                 "Supplied files are not images nor sequences"
             )?;
-            std::process::exit(exitcode::DATAERR);
+            std::process::exit(1);
         }
     }
 
-    std::process::exit(exitcode::OK)
+    std::process::exit(0)
 }

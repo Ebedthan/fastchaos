@@ -149,7 +149,7 @@ pub fn compare_images(images: Vec<String>) -> Vec<(String, String, f64)> {
         Ok(f) => f,
         Err(err) => {
             eprintln!("{}", err);
-            std::process::exit(exitcode::DATAERR);
+            std::process::exit(1);
         }
     };
 
@@ -170,7 +170,7 @@ pub fn compare_images(images: Vec<String>) -> Vec<(String, String, f64)> {
                 combination[1].1.height()
             )
             .expect("Cannot write to stderr");
-            process::exit(exitcode::DATAERR);
+            process::exit(1);
         }
 
         let (dssim, _) = attr.compare(&combination[0].1, &combination[1].1);

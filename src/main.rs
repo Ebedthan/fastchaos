@@ -35,7 +35,7 @@ fn main() -> Result<()> {
     // Encode subcommand ------------------------------------------------------
     if let Some(matches) = matches.subcommand_matches("encode") {
         let input = matches.get_one::<PathBuf>("INFILE").unwrap();
-        let output = format!("{}.cgr", input.display());
+        let output = format!("{}.icgr", input.display());
         let destination = fs::OpenOptions::new()
             .append(true)
             .create(true)
@@ -51,7 +51,7 @@ fn main() -> Result<()> {
     // Decode subcommand ------------------------------------------------------
     } else if let Some(matches) = matches.subcommand_matches("decode") {
         let input = matches.get_one::<PathBuf>("INFILE").unwrap();
-        if input.extension() != Some(std::ffi::OsStr::new("cgr")) {
+        if input.extension() != Some(std::ffi::OsStr::new("icgr")) {
             eprintln!(
                 "error: unknown suffix ({:?}), ignored",
                 input.extension().unwrap()
@@ -77,7 +77,7 @@ fn main() -> Result<()> {
                 }
             }
             None => {
-                let output = input.as_path().with_extension("cgr");
+                let output = input.as_path().with_extension("icgr");
                 if output.exists() && !matches.get_flag("force") {
                     eprintln!(
                         "error: cannot decode to {:?}, file already exists",

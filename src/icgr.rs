@@ -1,4 +1,4 @@
-// Copyright 2021-2022 Anicet Ebou.
+// Copyright 2021-2023 Anicet Ebou.
 // Licensed under the MIT license (http://opensource.org/licenses/MIT)
 // This file may not be copied, modified, or distributed except according
 // to those terms.
@@ -124,14 +124,17 @@ impl Icgr {
         let seq_length = sequence.len();
         let seq = String::from_utf8_lossy(sequence);
 
+        // ICGR work for sequence with max length of 100 due to
+        // exponentiation of 2 which easily overflow after a certain number
         if seq_length > 100 {
+            // TODO: try to paralelize this loop
             for chunk in str_chunks(&seq, 100) {
                 let mut aa;
                 let mut bb;
                 let mut xx: Vec<i128> = Vec::new();
                 let mut yy: Vec<i128> = Vec::new();
                 let chunk_length = chunk.len();
-
+                // TODO: try to paralelize this loop
                 for (index, nucleotide) in chunk.chars().enumerate() {
                     if index == 0 {
                         if nucleotide == 'A' {
@@ -263,6 +266,7 @@ fn get_cgr_vertex(x: i128, y: i128) -> Result<(i128, i128)> {
     }
 }
 
+/// Function generating an iterator of chunks of sequence
 #[inline]
 fn str_chunks<'a>(
     s: &'a str,

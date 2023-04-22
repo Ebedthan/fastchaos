@@ -1,4 +1,4 @@
-// Copyright 2021-2022 Anicet Ebou.
+// Copyright 2021-2023 Anicet Ebou.
 // Licensed under the MIT license (http://opensource.org/licenses/MIT)
 // This file may not be copied, modified, or distributed except according
 // to those terms.
@@ -79,17 +79,17 @@ impl DnaToChaos for fasta::Record {
         for (index, nucleotide) in self.sequence().as_ref().iter().enumerate() {
             if index == 0 {
                 if *nucleotide == b'A' {
-                    aa = an[0] as f64 * 0.5;
-                    bb = an[1] as f64 * 0.5;
+                    aa = an[0] * 0.5;
+                    bb = an[1] * 0.5;
                 } else if *nucleotide == b'T' {
-                    aa = tn[0] as f64 * 0.5;
-                    bb = tn[1] as f64 * 0.5;
+                    aa = tn[0] * 0.5;
+                    bb = tn[1] * 0.5;
                 } else if *nucleotide == b'C' {
-                    aa = cn[0] as f64 * 0.5;
-                    bb = cn[1] as f64 * 0.5;
+                    aa = cn[0] * 0.5;
+                    bb = cn[1] * 0.5;
                 } else {
-                    aa = gn[0] as f64 * 0.5;
-                    bb = gn[1] as f64 * 0.5;
+                    aa = gn[0] * 0.5;
+                    bb = gn[1] * 0.5;
                 }
             } else if *nucleotide == b'A' {
                 aa = 0.5 * (result[index - 1].0 + an[0]);
@@ -139,7 +139,7 @@ pub fn compare_images(images: Vec<String>) -> Vec<(String, String, f64)> {
     let files = images
         .par_iter()
         .map(|file| -> Result<_, String> {
-            let image = utils::load_image(&attr, &file)
+            let image = utils::load_image(&attr, file)
                 .map_err(|e| format!("Cannot load {}, because: {}", file, e))?;
             Ok((file, image))
         })

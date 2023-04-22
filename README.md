@@ -28,7 +28,7 @@ cargo install fastchaos
 
 ### Downloading the precompiled releases
 
-See release pages.
+See [release](https://github.com/Ebedthan/fastchaos) page to download your prefered binary.
 
 
 ### Compile it yourself
@@ -78,7 +78,7 @@ This crate's minimum supported `rustc` version is `1.57.0`.
 
 
 ### Note
-fastchaos use colored output in help, nevertheless fastchaos honors [NO_COLORS](https://no-color.org/) environment variable.
+`fastchaos` use colored output in help, nevertheless `fastchaos` honors [NO_COLORS](https://no-color.org/) environment variable.
 
 
 ### Bugs

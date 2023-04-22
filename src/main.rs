@@ -1,4 +1,4 @@
-// Copyright 2021-2022 Anicet Ebou.
+// Copyright 2021-2023 Anicet Ebou.
 // Licensed under the MIT license (http://opensource.org/licenses/MIT)
 // This file may not be copied, modified, or distributed except according
 // to those terms.
@@ -9,7 +9,7 @@ extern crate clap;
 use std::env;
 use std::fs;
 use std::io::{self, Write};
-use std::path::{self, PathBuf};
+use std::path::{self, Path, PathBuf};
 
 use anyhow::{anyhow, Context, Result};
 
@@ -22,9 +22,11 @@ fn main() -> Result<()> {
     // Get command line arguments ---------------------------------------------
     let matches = app::build_app().get_matches_from(env::args_os());
 
-    let num_threads: usize = matches
-        .value_of_t("threads")
-        .unwrap_or_else(|error| error.exit());
+    let num_threads = matches
+        .get_one::<String>("threads")
+        .unwrap_or(&"1".to_owned())
+        .parse::<usize>()
+        .unwrap();
 
     rayon::ThreadPoolBuilder::new()
         .num_threads(num_threads)
@@ -32,96 +34,71 @@ fn main() -> Result<()> {
 
     // Encode subcommand ------------------------------------------------------
     if let Some(matches) = matches.subcommand_matches("encode") {
-        match matches.value_of("INFILE") {
-            Some(input) => match matches.value_of("output") {
-                Some(output) => {
-                    let destination = fs::OpenOptions::new()
-                        .create(true)
-                        .append(true)
-                        .open(output)?;
+        let input = matches.get_one::<PathBuf>("INFILE").unwrap();
+        let output = format!("{}.cgr", input.display());
+        let destination = fs::OpenOptions::new()
+            .append(true)
+            .create(true)
+            .open(output)?;
 
-                    if input == "-" {
-                        icgr::encode(io::stdin(), destination)?;
-                    } else {
-                        let source = fs::File::open(input)?;
-                        icgr::encode(source, destination)?;
-                    }
-                }
-
-                None => {
-                    if input == "-" {
-                        icgr::encode(io::stdin(), io::stdout())?;
-                    } else {
-                        let source = fs::File::open(input)?;
-                        icgr::encode(source, io::stdout())?;
-                    }
-                }
-            },
-
-            None => match matches.value_of("output") {
-                Some(output) => {
-                    let destination = fs::OpenOptions::new()
-                        .create(true)
-                        .append(true)
-                        .open(output)?;
-
-                    icgr::encode(io::stdin(), destination)?;
-                }
-
-                None => {
-                    icgr::encode(io::stdin(), io::stdout())?;
-                }
-            },
-        }
+        let source = fs::File::open(input)?;
+        icgr::encode(source, destination)?;
 
     // Decode subcommand ------------------------------------------------------
     } else if let Some(matches) = matches.subcommand_matches("decode") {
-        match matches.value_of("INFILE") {
-            Some(input) => match matches.value_of("output") {
-                Some(output) => {
-                    let destination = fs::OpenOptions::new()
-                        .create(true)
-                        .append(true)
-                        .open(output)?;
-
-                    if input == "-" {
-                        icgr::decode(io::stdin(), destination)?;
-                    } else {
-                        let source = fs::File::open(input)?;
-                        icgr::decode(source, destination)?;
-                    }
+        let input = matches.get_one::<PathBuf>("INFILE").unwrap();
+        if input.extension() != Some(std::ffi::OsStr::new("cgr")) {
+            eprintln!(
+                "error: unknown suffix ({:?}), ignored",
+                input.extension().unwrap()
+            );
+            std::process::exit(1);
+        }
+        match matches.get_one::<PathBuf>("output") {
+            Some(output) => {
+                if Path::new(output).exists() {
+                    eprintln!(
+                        "error: cannot decode to '{:?}', file already exists",
+                        output
+                    );
+                    std::process::exit(1);
                 }
+                let destination = fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(output)?;
 
-                None => {
-                    if input == "-" {
-                        icgr::decode(io::stdin(), io::stdout())?;
-                    } else {
-                        let source = fs::File::open(input)?;
-                        icgr::decode(source, io::stdout())?;
-                    }
+                let source = fs::File::open(input)?;
+                icgr::decode(source, destination)?;
+            }
+            None => {
+                let output = input.as_path().with_extension("cgr");
+                if output.exists() {
+                    eprintln!(
+                        "error: cannot decode to {:?}, file already exists",
+                        output
+                    );
+                    std::process::exit(1);
                 }
-            },
+                let destination = fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(output)?;
 
-            None => match matches.value_of("output") {
-                Some(output) => {
-                    let destination = fs::OpenOptions::new()
-                        .create(true)
-                        .append(true)
-                        .open(output)?;
+                let source = fs::File::open(input)?;
+                icgr::decode(source, destination)?;
+            }
+        }
 
-                    icgr::decode(io::stdin(), destination)?;
-                }
-
-                None => {
-                    icgr::decode(io::stdin(), io::stdout())?;
-                }
-            },
+        // Delete cgr file if not otherwise specified
+        if !matches.get_flag("keep") {
+            std::fs::remove_file(input)?;
         }
 
     // Draw subcommand --------------------------------------------------------
     } else if let Some(matches) = matches.subcommand_matches("draw") {
-        match matches.value_of("INFILE") {
-            Some(input) => match matches.value_of("output") {
+        match matches.get_one::<String>("INFILE") {
+            Some(input) => match matches.get_one::<String>("output") {
                 Some(output) => {
                     let destination = PathBuf::from(output);
 
@@ -143,7 +120,7 @@ fn main() -> Result<()> {
                 }
             },
 
-            None => match matches.value_of("output") {
+            None => match matches.get_one::<String>("output") {
                 Some(output) => {
                     let destination = PathBuf::from(output);
 
@@ -159,7 +136,7 @@ fn main() -> Result<()> {
     // Compare subcommand -----------------------------------------------------
     } else if let Some(matches) = matches.subcommand_matches("compare") {
         let folder = matches
-            .value_of("INDIR")
+            .get_one::<String>("INDIR")
             .with_context(|| anyhow!("Could not find input directory"))?;
 
         let files = fs::read_dir(folder)?
@@ -171,7 +148,7 @@ fn main() -> Result<()> {
             .map(|x| x.as_str())
             .all(|file| path::Path::new(file).extension().unwrap() == "png")
         {
-            match matches.value_of("output") {
+            match matches.get_one::<String>("output") {
                 Some(filename) => {
                     let mut file = fs::OpenOptions::new()
                         .append(true)
@@ -218,7 +195,7 @@ fn main() -> Result<()> {
                 .map(|res| res.map(|e| e.path().to_str().unwrap().to_string()))
                 .collect::<Result<Vec<_>, io::Error>>()?;
 
-            match matches.value_of("output") {
+            match matches.get_one::<String>("output") {
                 Some(filename) => {
                     let mut file = fs::OpenOptions::new()
                         .append(true)

@@ -1,0 +1,1 @@
+tests/homo_sapiens_mitochondrion.fa

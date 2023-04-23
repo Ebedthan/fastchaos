@@ -154,13 +154,6 @@ impl SSIMResult {
         self.reference = r;
         self.ssim = s;
     }
-    pub fn from(q: &String, r: &String, s: f64) -> SSIMResult {
-        SSIMResult {
-            query: q.to_string(),
-            reference: r.to_string(),
-            ssim: s,
-        }
-    }
 }
 
 impl fmt::Display for SSIMResult {
@@ -183,7 +176,10 @@ impl fmt::Display for SSIMResult {
     }
 }
 
-pub fn compare_genomes(query: String, reference: String) -> Result<SSIMResult> {
+pub fn compare_genomes(
+    query: &String,
+    reference: &String,
+) -> Result<SSIMResult> {
     // Create temporary directory
     let dir = tempdir()?;
 

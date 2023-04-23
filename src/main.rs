@@ -7,8 +7,6 @@ extern crate anyhow;
 extern crate clap;
 
 use anyhow::Result;
-use dssim_core::Dssim;
-use dssim_core::DssimImage;
 use itertools::Itertools;
 
 use std::env;
@@ -126,8 +124,8 @@ fn main() -> Result<()> {
 
         if matches.contains_id("QUERY") && matches.contains_id("REFERENCE") {
             ssim.push(cgr::compare_genomes(
-                matches.get_one::<String>("QUERY").unwrap().to_string(),
-                matches.get_one::<String>("REFERENCE").unwrap().to_string(),
+                matches.get_one::<String>("QUERY").unwrap(),
+                matches.get_one::<String>("REFERENCE").unwrap(),
             )?);
         } else {
             let mut qfiles = Vec::new();
@@ -172,60 +170,19 @@ fn main() -> Result<()> {
                     }
                 }
             }
-            let attr = Dssim::new();
             if matches.get_flag("allvsall") {
                 qfiles.extend(rfiles);
 
-                let images: Vec<(DssimImage<f32>, String)> = qfiles
-                    .iter()
-                    .map(|x| {
-                        utils::get_image(&Path::new(x).to_path_buf()).unwrap()
-                    })
-                    .collect();
-
-                let it = images.into_iter().combinations_with_replacement(2);
+                let it = qfiles.into_iter().combinations_with_replacement(2);
 
                 for comb in it {
-                    if utils::is_same_width_height(&comb[0], &comb[1]) {
-                        let (dssim, _) = attr.compare(&comb[0].0, &comb[1].0);
-                        ssim.push(cgr::SSIMResult::from(
-                            &comb[0].1,
-                            &comb[1].1,
-                            f64::from(dssim),
-                        ));
-                    } else {
-                        utils::eimgprint(&comb[0], &comb[1]);
-                        std::process::exit(1);
-                    }
+                    ssim.push(cgr::compare_genomes(&comb[0], &comb[1])?);
                 }
             } else {
-                let qimg: Vec<(DssimImage<f32>, String)> = qfiles
-                    .iter()
-                    .map(|x| {
-                        utils::get_image(&Path::new(x).to_path_buf()).unwrap()
-                    })
-                    .collect();
-                let rimg: Vec<(DssimImage<f32>, String)> = rfiles
-                    .iter()
-                    .map(|x| {
-                        utils::get_image(&Path::new(x).to_path_buf()).unwrap()
-                    })
-                    .collect();
-
-                let it = qimg.iter().cartesian_product(rimg.iter());
+                let it = qfiles.iter().cartesian_product(rfiles.iter());
 
                 for prod in it {
-                    if utils::is_same_width_height(prod.0, prod.1) {
-                        let (dssim, _) = attr.compare(&prod.0 .0, &prod.1 .0);
-                        ssim.push(cgr::SSIMResult::from(
-                            &prod.0 .1,
-                            &prod.1 .1,
-                            f64::from(dssim),
-                        ));
-                    } else {
-                        utils::eimgprint(prod.0, prod.1);
-                        std::process::exit(1);
-                    }
+                    ssim.push(cgr::compare_genomes(prod.0, prod.1)?);
                 }
             }
         }

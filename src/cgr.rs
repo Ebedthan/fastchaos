@@ -10,17 +10,18 @@ extern crate plotters;
 extern crate rayon;
 extern crate serde;
 
-use std::io::{self, BufReader, Write};
-use std::path::PathBuf;
+use std::fmt;
+use std::fs::File;
+use std::io::{self, BufReader};
+use std::path::{Path, PathBuf};
 use std::process;
 use std::str;
 
 use anyhow::Result;
-use itertools::Itertools;
 use noodles::fasta;
 use plotters::prelude::*;
-use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
+use tempfile::tempdir;
 
 use crate::utils;
 
@@ -35,10 +36,10 @@ pub struct Chaos {
 }
 
 impl Chaos {
-    fn draw(&self, outdir: &PathBuf) -> Result<()> {
-        let png = format!("{}_cgr.png", self.id);
+    fn draw(&self, outdir: &PathBuf) -> Result<String> {
+        let png = format!("{}.png", self.id);
         let mut opath = PathBuf::from(outdir);
-        opath.push(png);
+        opath.push(&png);
 
         let root_area =
             BitMapBackend::new(&opath, (1024, 768)).into_drawing_area();
@@ -57,7 +58,7 @@ impl Chaos {
         }))
         .unwrap();
 
-        Ok(())
+        Ok(png.clone())
     }
 }
 
@@ -115,9 +116,10 @@ impl DnaToChaos for fasta::Record {
     }
 }
 
-pub fn draw<R: io::Read>(source: R, destination: PathBuf) -> Result<()> {
+pub fn draw<R: io::Read>(source: R, destination: PathBuf) -> Result<String> {
     let mut reader = fasta::Reader::new(BufReader::new(source));
 
+    let mut img_name = String::new();
     for result in reader.records() {
         // Unwrap record
         let record = result?;
@@ -126,62 +128,88 @@ pub fn draw<R: io::Read>(source: R, destination: PathBuf) -> Result<()> {
         let chaos = record.record_to_chaos();
 
         // Draw CGR of chao
-        chaos.draw(&destination)?;
+        img_name = chaos.draw(&destination)?;
     }
 
-    Ok(())
+    Ok(img_name)
 }
 
-pub fn compare_images(images: Vec<String>) -> Vec<(String, String, f64)> {
-    let mut result = Vec::new();
+#[derive(Debug)]
+pub struct SSIMResult {
+    query: String,
+    reference: String,
+    ssim: f64,
+}
+
+impl SSIMResult {
+    pub fn new() -> Self {
+        SSIMResult {
+            query: String::new(),
+            reference: String::new(),
+            ssim: 0_f64,
+        }
+    }
+    fn add(&mut self, q: String, r: String, s: f64) {
+        self.query = q;
+        self.reference = r;
+        self.ssim = s;
+    }
+    pub fn from(q: &String, r: &String, s: f64) -> SSIMResult {
+        SSIMResult {
+            query: q.to_string(),
+            reference: r.to_string(),
+            ssim: s,
+        }
+    }
+}
+
+impl fmt::Display for SSIMResult {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{}\t{}\t{}",
+            Path::new(&self.query)
+                .file_name()
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            Path::new(&self.reference)
+                .file_name()
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            self.ssim
+        )
+    }
+}
+
+pub fn compare_genomes(query: String, reference: String) -> Result<SSIMResult> {
+    // Create temporary directory
+    let dir = tempdir()?;
+
     let attr = dssim_core::Dssim::new();
+    let mut result = SSIMResult::new();
 
-    let files = images
-        .par_iter()
-        .map(|file| -> Result<_, String> {
-            let image = utils::load_image(&attr, file)
-                .map_err(|e| format!("Cannot load {}, because: {}", file, e))?;
-            Ok((file, image))
-        })
-        .collect::<Result<Vec<_>, _>>();
+    // Draw images from sequences
+    let qfile = File::open(query)?;
+    let rfile = File::open(reference)?;
 
-    let files = match files {
-        Ok(f) => f,
-        Err(err) => {
-            eprintln!("{}", err);
-            std::process::exit(1);
-        }
-    };
+    let qimg = draw(qfile, dir.path().to_path_buf())?;
+    let rimg = draw(rfile, dir.path().to_path_buf())?;
 
-    let it = files.into_iter().combinations_with_replacement(2);
+    // Read images
+    let qimage = utils::get_image(&dir.path().join(qimg))?;
+    let rimage = utils::get_image(&dir.path().join(rimg))?;
 
-    for combination in it {
-        if combination[0].1.width() != combination[1].1.width()
-            || combination[0].1.height() != combination[1].1.height()
-        {
-            writeln!(
-                io::stderr(),
-                "Image {} has a different size ({}x{}) than {} ({}x{})\n",
-                combination[0].0,
-                combination[0].1.width(),
-                combination[0].1.height(),
-                combination[1].0,
-                combination[1].1.width(),
-                combination[1].1.height()
-            )
-            .expect("Cannot write to stderr");
-            process::exit(1);
-        }
-
-        let (dssim, _) = attr.compare(&combination[0].1, &combination[1].1);
-        result.push((
-            combination[0].0.to_string(),
-            combination[1].0.to_string(),
-            f64::from(dssim),
-        ));
+    if utils::is_same_width_height(&qimage, &rimage) {
+        let (dssim, _) = attr.compare(&qimage.0, &rimage.0);
+        result.add(qimage.1, rimage.1, f64::from(dssim));
+    } else {
+        utils::eimgprint(&qimage, &rimage);
+        process::exit(1);
     }
 
-    result
+    Ok(result)
 }
 
 #[cfg(test)]
@@ -231,8 +259,8 @@ mod tests {
         ot.push("sq0_cgr.png");
 
         chaos.draw(&PathBuf::from(odir)).unwrap();
-        let gr = compare_images(vec![ot.to_str().unwrap().to_string()]);
 
+        /*
         assert_eq!(
             gr,
             vec![(
@@ -240,7 +268,7 @@ mod tests {
                 ot.to_str().unwrap().to_string(),
                 0_f64
             )]
-        );
+        );*/
 
         fs::remove_dir_all(&ot.parent().unwrap()).unwrap();
     }

@@ -8,7 +8,9 @@ extern crate dssim_core;
 extern crate imgref;
 extern crate load_image;
 
-use std::path::Path;
+use std::fs::File;
+use std::io::{self, BufRead};
+use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use dssim_core::*;
@@ -70,6 +72,42 @@ fn load(attr: &Dssim, path: &Path) -> Result<DssimImage<f32>, lodepng::Error> {
         )),
     }
     .expect("infallible"))
+}
+
+pub fn get_image(file: &PathBuf) -> Result<(DssimImage<f32>, String)> {
+    let attr = Dssim::new();
+    let image = load_image(&attr, file)?;
+    Ok((image, file.to_str().unwrap().to_string()))
+}
+
+pub fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>>
+where
+    P: AsRef<Path>,
+{
+    let file = File::open(filename)?;
+    Ok(io::BufReader::new(file).lines())
+}
+
+pub fn is_same_width_height(
+    img1: &(DssimImage<f32>, String),
+    img2: &(DssimImage<f32>, String),
+) -> bool {
+    img1.0.width() == img2.0.width() || img1.0.height() == img2.0.height()
+}
+
+pub fn eimgprint(
+    img1: &(DssimImage<f32>, String),
+    img2: &(DssimImage<f32>, String),
+) {
+    eprintln!(
+        "Image {} has a different size ({}x{}) than {} ({}x{})\n",
+        img1.1,
+        img1.0.width(),
+        img1.0.height(),
+        img2.1,
+        img2.0.width(),
+        img2.0.height()
+    );
 }
 
 // Tests -------------------------------------------

@@ -6,12 +6,15 @@
 extern crate anyhow;
 extern crate clap;
 
+use anyhow::Result;
+use dssim_core::Dssim;
+use dssim_core::DssimImage;
+use itertools::Itertools;
+
 use std::env;
 use std::fs;
-use std::io::{self, Write};
-use std::path::{self, Path, PathBuf};
-
-use anyhow::{anyhow, Context, Result};
+use std::io::Write;
+use std::path::{Path, PathBuf};
 
 mod app;
 mod cgr;
@@ -77,7 +80,7 @@ fn main() -> Result<()> {
                 }
             }
             None => {
-                let output = input.as_path().with_extension("icgr");
+                let output = input.as_path().with_extension("icgr"); // TODO: Verify
                 if output.exists() && !matches.get_flag("force") {
                     eprintln!(
                         "error: cannot decode to {:?}, file already exists",
@@ -108,116 +111,138 @@ fn main() -> Result<()> {
             Some(output) => {
                 let destination = PathBuf::from(output);
                 let source = fs::File::open(input)?;
-                cgr::draw(source, destination)?;
+                let _ = cgr::draw(source, destination)?;
             }
 
             None => {
                 let source = fs::File::open(input)?;
-                cgr::draw(source, PathBuf::from("."))?;
+                let _ = cgr::draw(source, PathBuf::from("."))?;
             }
         }
 
     // Compare subcommand -----------------------------------------------------
     } else if let Some(matches) = matches.subcommand_matches("compare") {
-        let folder = matches
-            .get_one::<String>("INDIR")
-            .with_context(|| anyhow!("Could not find input directory"))?;
+        let mut ssim = Vec::new();
 
-        let files = fs::read_dir(folder)?
-            .map(|res| res.map(|e| e.path().to_str().unwrap().to_string()))
-            .collect::<Result<Vec<_>, io::Error>>()?;
-
-        if files
-            .iter()
-            .map(|x| x.as_str())
-            .all(|file| path::Path::new(file).extension().unwrap() == "png")
-        {
-            match matches.get_one::<String>("output") {
-                Some(filename) => {
-                    let mut file = fs::OpenOptions::new()
-                        .append(true)
-                        .create(true)
-                        .open(filename)
-                        .expect("Cannot open file");
-
-                    let result = cgr::compare_images(files);
-
-                    for data in result {
-                        file.write_all(
-                            format!("{}\t{}\t{:.8}\n", data.0, data.1, data.2)
-                                .as_bytes(),
-                        )
-                        .expect("Cannot write to file");
+        if matches.contains_id("QUERY") && matches.contains_id("REFERENCE") {
+            ssim.push(cgr::compare_genomes(
+                matches.get_one::<String>("QUERY").unwrap().to_string(),
+                matches.get_one::<String>("REFERENCE").unwrap().to_string(),
+            )?);
+        } else {
+            let mut qfiles = Vec::new();
+            let mut rfiles = Vec::new();
+            if matches.contains_id("QUERY") && matches.contains_id("refs") {
+                if let Ok(lines) = utils::read_lines(
+                    matches.get_one::<PathBuf>("refs").unwrap(),
+                ) {
+                    for line in lines.flatten() {
+                        rfiles.push(line);
                     }
                 }
-                None => {
-                    let result = cgr::compare_images(files);
-
-                    for data in result {
-                        writeln!(
-                            io::stdout(),
-                            "{}\t{}\t{:.8}",
-                            data.0,
-                            data.1,
-                            data.2,
-                        )
-                        .expect("Cannot write to file");
+                qfiles.push(
+                    matches.get_one::<String>("QUERY").unwrap().to_string(),
+                );
+            } else if matches.contains_id("REFERENCE")
+                && matches.contains_id("queries")
+            {
+                if let Ok(lines) = utils::read_lines(
+                    matches.get_one::<PathBuf>("queries").unwrap(),
+                ) {
+                    for line in lines.flatten() {
+                        qfiles.push(line);
+                    }
+                }
+                rfiles.push(
+                    matches.get_one::<String>("REFERENCE").unwrap().to_string(),
+                );
+            } else {
+                if let Ok(lines) = utils::read_lines(
+                    matches.get_one::<PathBuf>("queries").unwrap(),
+                ) {
+                    for line in lines.flatten() {
+                        qfiles.push(line);
+                    }
+                }
+                if let Ok(lines) = utils::read_lines(
+                    matches.get_one::<PathBuf>("refs").unwrap(),
+                ) {
+                    for line in lines.flatten() {
+                        rfiles.push(line);
                     }
                 }
             }
-        } else if files.iter().map(|x| x.as_str()).all(|file| {
-            path::Path::new(file).extension().unwrap() == "fa"
-                || path::Path::new(file).extension().unwrap() == "fas"
-                || path::Path::new(file).extension().unwrap() == "fasta"
-        }) {
-            for fi in files {
-                let source = fs::File::open(fi)?;
-                cgr::draw(source, PathBuf::from("temp"))?;
+            let attr = Dssim::new();
+            if matches.get_flag("allvsall") {
+                qfiles.extend(rfiles);
+
+                let images: Vec<(DssimImage<f32>, String)> = qfiles
+                    .iter()
+                    .map(|x| {
+                        utils::get_image(&Path::new(x).to_path_buf()).unwrap()
+                    })
+                    .collect();
+
+                let it = images.into_iter().combinations_with_replacement(2);
+
+                for comb in it {
+                    if utils::is_same_width_height(&comb[0], &comb[1]) {
+                        let (dssim, _) = attr.compare(&comb[0].0, &comb[1].0);
+                        ssim.push(cgr::SSIMResult::from(
+                            &comb[0].1,
+                            &comb[1].1,
+                            f64::from(dssim),
+                        ));
+                    } else {
+                        utils::eimgprint(&comb[0], &comb[1]);
+                        std::process::exit(1);
+                    }
+                }
+            } else {
+                let qimg: Vec<(DssimImage<f32>, String)> = qfiles
+                    .iter()
+                    .map(|x| {
+                        utils::get_image(&Path::new(x).to_path_buf()).unwrap()
+                    })
+                    .collect();
+                let rimg: Vec<(DssimImage<f32>, String)> = rfiles
+                    .iter()
+                    .map(|x| {
+                        utils::get_image(&Path::new(x).to_path_buf()).unwrap()
+                    })
+                    .collect();
+
+                let it = qimg.iter().cartesian_product(rimg.iter());
+
+                for prod in it {
+                    if utils::is_same_width_height(prod.0, prod.1) {
+                        let (dssim, _) = attr.compare(&prod.0 .0, &prod.1 .0);
+                        ssim.push(cgr::SSIMResult::from(
+                            &prod.0 .1,
+                            &prod.1 .1,
+                            f64::from(dssim),
+                        ));
+                    } else {
+                        utils::eimgprint(prod.0, prod.1);
+                        std::process::exit(1);
+                    }
+                }
             }
+        }
 
-            let imgs = fs::read_dir("temp")?
-                .map(|res| res.map(|e| e.path().to_str().unwrap().to_string()))
-                .collect::<Result<Vec<_>, io::Error>>()?;
+        if matches.contains_id("output") {
+            let mut out = fs::OpenOptions::new()
+                .append(true)
+                .create(true)
+                .open(matches.get_one::<PathBuf>("output").unwrap())?;
 
-            match matches.get_one::<String>("output") {
-                Some(filename) => {
-                    let mut file = fs::OpenOptions::new()
-                        .append(true)
-                        .create(true)
-                        .open(filename)
-                        .expect("Cannot open file");
-
-                    let result = cgr::compare_images(imgs);
-
-                    for data in result {
-                        file.write_all(
-                            format!("{}\t{}\t{:.8}\n", data.0, data.1, data.2)
-                                .as_bytes(),
-                        )
-                        .expect("Cannot write to file");
-                    }
-                }
-                None => {
-                    let result = cgr::compare_images(imgs);
-
-                    for data in result {
-                        writeln!(
-                            io::stdout(),
-                            "{}\t{}\t{:.8}",
-                            data.0,
-                            data.1,
-                            data.2,
-                        )
-                        .expect("Cannot write to file");
-                    }
-                }
+            for result in ssim {
+                out.write_all(format!("{}", result).as_bytes())?;
             }
         } else {
-            writeln!(
-                io::stderr(),
-                "Supplied files are not images nor sequences"
-            )?;
-            std::process::exit(1);
+            for result in ssim {
+                println!("{}", result);
+            }
         }
     }
 

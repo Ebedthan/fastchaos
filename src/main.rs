@@ -3,7 +3,6 @@
 // This file may not be copied, modified, or distributed except according
 // to those terms.
 
-use anyhow::Result;
 use itertools::Itertools;
 
 use std::env;
@@ -16,7 +15,7 @@ mod cgr;
 mod icgr;
 mod utils;
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     // Get command line arguments ---------------------------------------------
     let matches = app::build_app().get_matches_from(env::args_os());
 

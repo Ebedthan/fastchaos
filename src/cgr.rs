@@ -10,7 +10,6 @@ use std::path::{Path, PathBuf};
 use std::process;
 use std::str;
 
-use anyhow::Result;
 use noodles::fasta;
 use plotters::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -29,7 +28,7 @@ pub struct Chaos {
 }
 
 impl Chaos {
-    fn draw(&self, outdir: &PathBuf) -> Result<String> {
+    fn draw(&self, outdir: &PathBuf) -> anyhow::Result<String> {
         let png = format!("{}.png", self.id);
         let mut opath = PathBuf::from(outdir);
         opath.push(&png);
@@ -109,7 +108,10 @@ impl DnaToChaos for fasta::Record {
     }
 }
 
-pub fn draw<R: io::Read>(source: R, destination: PathBuf) -> Result<String> {
+pub fn draw<R: io::Read>(
+    source: R,
+    destination: PathBuf,
+) -> anyhow::Result<String> {
     let mut reader = fasta::Reader::new(BufReader::new(source));
 
     let mut img_name = String::new();
@@ -172,7 +174,7 @@ impl fmt::Display for SSIMResult {
 pub fn compare_genomes(
     query: &String,
     reference: &String,
-) -> Result<SSIMResult> {
+) -> anyhow::Result<SSIMResult> {
     // Create temporary directory
     let dir = tempdir()?;
 

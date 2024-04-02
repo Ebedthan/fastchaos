@@ -20,7 +20,10 @@ pub fn load_image(
     load(attr, path.as_ref())
 }
 
-fn load(attr: &Dssim, path: &Path) -> lodepng::Result<DssimImage<f32>, lodepng::Error> {
+fn load(
+    attr: &Dssim,
+    path: &Path,
+) -> lodepng::Result<DssimImage<f32>, lodepng::Error> {
     let img = load_image::load_path(path).unwrap();
     Ok(match img.bitmap {
         ImageData::RGB8(ref bitmap) => attr.create_image(&Img::new(

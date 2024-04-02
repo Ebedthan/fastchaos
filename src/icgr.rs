@@ -107,10 +107,10 @@ impl Icgr {
     fn from_sequence(sequence: &[u8]) -> Vec<Icgr> {
         let mut icgrs = Vec::new();
 
-        let an = vec![1, 1];
-        let tn = vec![-1, 1];
-        let cn = vec![-1, -1];
-        let gn = vec![1, -1];
+        let an = [1, 1];
+        let tn = [-1, 1];
+        let cn = [-1, -1];
+        let gn = [1, -1];
         let base: i128 = 2;
 
         // Get sequence length

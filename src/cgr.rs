@@ -63,10 +63,10 @@ impl DnaToChaos for fasta::Record {
     fn record_to_chaos(&self) -> Chaos {
         let mut result: Vec<(f64, f64)> = Vec::new();
 
-        let an = vec![1.00, 1.00];
-        let tn = vec![-1.00, 1.00];
-        let cn = vec![-1.00, -1.00];
-        let gn = vec![1.00, -1.00];
+        let an = [1.00, 1.00];
+        let tn = [-1.00, 1.00];
+        let cn = [-1.00, -1.00];
+        let gn = [1.00, -1.00];
         let mut aa;
         let mut bb;
 

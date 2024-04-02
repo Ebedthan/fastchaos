@@ -131,7 +131,7 @@ fn main() -> Result<()> {
                 if let Ok(lines) = utils::read_lines(
                     matches.get_one::<PathBuf>("refs").unwrap(),
                 ) {
-                    for line in lines.flatten() {
+                    for line in lines.map_while(Result::ok) {
                         rfiles.push(line);
                     }
                 }
@@ -144,7 +144,7 @@ fn main() -> Result<()> {
                 if let Ok(lines) = utils::read_lines(
                     matches.get_one::<PathBuf>("queries").unwrap(),
                 ) {
-                    for line in lines.flatten() {
+                    for line in lines.map_while(Result::ok) {
                         qfiles.push(line);
                     }
                 }
@@ -155,14 +155,14 @@ fn main() -> Result<()> {
                 if let Ok(lines) = utils::read_lines(
                     matches.get_one::<PathBuf>("queries").unwrap(),
                 ) {
-                    for line in lines.flatten() {
+                    for line in lines.map_while(Result::ok) {
                         qfiles.push(line);
                     }
                 }
                 if let Ok(lines) = utils::read_lines(
                     matches.get_one::<PathBuf>("refs").unwrap(),
                 ) {
-                    for line in lines.flatten() {
+                    for line in lines.map_while(Result::ok) {
                         rfiles.push(line);
                     }
                 }

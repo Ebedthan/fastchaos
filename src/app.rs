@@ -1,4 +1,4 @@
-// Copyright 2021-2023 Anicet Ebou.
+// Copyright 2021-2024 Anicet Ebou.
 // Licensed under the MIT license (http://opensource.org/licenses/MIT)
 // This file may not be copied, modified, or distributed except according
 // to those terms.
@@ -123,4 +123,14 @@ pub fn build_app() -> Command {
                     .value_name("INT")
                     .help("number of threads")
                     .default_value("1"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn verify_cmd() {
+        build_app().debug_assert();
+    }
 }

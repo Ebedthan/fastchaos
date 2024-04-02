@@ -1,24 +1,17 @@
-// Copyright 2021-2023 Anicet Ebou.
+// Copyright 2021-2024 Anicet Ebou.
 // Licensed under the MIT license (http://opensource.org/licenses/MIT)
 // This file may not be copied, modified, or distributed except according
 // to those terms.
-
-extern crate anyhow;
-extern crate dssim_core;
-extern crate imgref;
-extern crate load_image;
 
 use std::fs::File;
 use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};
 
-use anyhow::Result;
 use dssim_core::*;
 use imgref::*;
 use load_image::*;
 
-// Copied from https://github.com/kornelski/dssim/blob/main/src/lib.rs
-
+// Copied https://github.com/kornelski/dssim/blob/f3e2191efed786081f780ddea08a1e6027f31680/src/lib.rs#L10
 /// Load PNG or JPEG image from the given path. Applies color profiles and converts to sRGB.
 pub fn load_image(
     attr: &Dssim,
@@ -27,8 +20,8 @@ pub fn load_image(
     load(attr, path.as_ref())
 }
 
-fn load(attr: &Dssim, path: &Path) -> Result<DssimImage<f32>, lodepng::Error> {
-    let img = load_image::load_path(path)?;
+fn load(attr: &Dssim, path: &Path) -> lodepng::Result<DssimImage<f32>, lodepng::Error> {
+    let img = load_image::load_path(path).unwrap();
     Ok(match img.bitmap {
         ImageData::RGB8(ref bitmap) => attr.create_image(&Img::new(
             bitmap.to_rgblu(),
@@ -74,7 +67,7 @@ fn load(attr: &Dssim, path: &Path) -> Result<DssimImage<f32>, lodepng::Error> {
     .expect("infallible"))
 }
 
-pub fn get_image(file: &PathBuf) -> Result<(DssimImage<f32>, String)> {
+pub fn get_image(file: &PathBuf) -> anyhow::Result<(DssimImage<f32>, String)> {
     let attr = Dssim::new();
     let image = load_image(&attr, file)?;
     Ok((image, file.to_str().unwrap().to_string()))

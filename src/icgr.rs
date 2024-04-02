@@ -1,14 +1,7 @@
-// Copyright 2021-2023 Anicet Ebou.
+// Copyright 2021-2024 Anicet Ebou.
 // Licensed under the MIT license (http://opensource.org/licenses/MIT)
 // This file may not be copied, modified, or distributed except according
 // to those terms.
-
-extern crate anyhow;
-extern crate noodles;
-extern crate rayon;
-extern crate serde;
-extern crate serde_json;
-extern crate zstd;
 
 use std::fmt;
 use std::io::{self, BufReader};

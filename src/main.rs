@@ -1,10 +1,7 @@
-// Copyright 2021-2023 Anicet Ebou.
+// Copyright 2021-2024 Anicet Ebou.
 // Licensed under the MIT license (http://opensource.org/licenses/MIT)
 // This file may not be copied, modified, or distributed except according
 // to those terms.
-
-extern crate anyhow;
-extern crate clap;
 
 use anyhow::Result;
 use itertools::Itertools;

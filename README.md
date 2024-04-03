@@ -11,6 +11,8 @@
 <br/>
 
 ## About
+`fastchaos` implement integer chaos game representation algorithm for DNA sequence encoding and decoding. `fastchaos` is the first complete implementation of the algorithm in a bioinformatic tool aiming at users. It also add to the original algorithm a output file format which is a `zst` compressed JSON file containing the 3 integers of 100bp subsequences of the supplied sequence. This allow fast encoding and decoding.
+It also implements chaos game representation of DNA sequence in a fast tool that draw the representation of a sequence and can compare the CGR image using the DSSIM algorithm.
 
 ## Installation
 
@@ -45,7 +47,7 @@ For full details, do `fastchaos -h`.
 
 
 ### Minimum Rust version policy
-This crate's minimum supported `rustc` version is `1.57.0`.
+This crate's minimum supported `rustc` version is `1.74.1`.
 
 
 ### Note

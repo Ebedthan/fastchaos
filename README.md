@@ -11,16 +11,15 @@
 <br/>
 
 ## About
-`fastchaos` implement integer chaos game representation algorithm for DNA sequence encoding and decoding. `fastchaos` is the first complete implementation of the algorithm in a bioinformatic tool aiming at users. It also add to the original algorithm a output file format which is a `zst` compressed JSON file containing the 3 integers of 100bp subsequences of the supplied sequence. This allow fast encoding and decoding.
-It also implements chaos game representation of DNA sequence in a fast tool that draw the representation of a sequence and can compare the CGR image using the DSSIM algorithm.
+`fastchaos` implement [integer chaos game representation (iCGR) algorithm](https://www.liebertpub.com/doi/abs/10.1089/cmb.2018.0173) for DNA sequence encoding and decoding. `fastchaos` is the first complete implementation of the algorithm in a bioinformatic tool aiming at users. It also add to the original algorithm a output file format which is a `zst` compressed JSON file containing the 3 integers of 100bp subsequences of the supplied sequence. This allow fast encoding and decoding.
+
+`fastchaos` also implements [chaos game representation (CGR) of DNA sequence](https://academic.oup.com/nar/article-abstract/18/8/2163/2383530) in a fast tool that draw the representation of a sequence and can compare the CGR image using the [DSSIM algorithm](https://github.com/kornelski/dssim/).
 
 ## Installation
 
 ```bash
 git clone https://github.com/Ebedthan/fastchaos.git
-
 cd fastchaos
-
 cargo build --release
 ```
 

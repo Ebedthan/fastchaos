@@ -2,12 +2,6 @@
 <a href="https://github.com/Ebedthan/fastchaos/actions?query=workflow%3A%22Continuous+Integration%22">
     <img src="https://img.shields.io/github/actions/workflow/status/Ebedthan/fastchaos/ci.yml?style=flat&logo=GitHub%20Actions&branch=main">
 </a>
-<a href="https://github.com/Ebedthan/fastchaos/actions?query=workflow%3A%22Continuous+Deployment%22">
-    <img src="https://img.shields.io/github/actions/workflow/status/Ebedthan/fastchaos/cd.yml?style=flat&logo=GitHub%20Actions&label=deploy&branch=main">
-</a>
-<a href="https://crates.io/crates/fastchaos">
-    <img src="https://img.shields.io/crates/v/fastchaos.svg?style=flat">
-</a>
 <a href="https://codecov.io/gh/Ebedthan/fastchaos">
     <img src="https://codecov.io/gh/Ebedthan/fastchaos/branch/main/graph/badge.svg?token=K7VN5TH6EZ"/>
 </a>
@@ -16,22 +10,9 @@
 </a>
 <br/>
 
-## 1 - About
+## About
 
-## 2 - Installation
-
-### Using cargo
-
-```bash
-cargo install fastchaos
-```
-
-### Downloading the precompiled releases
-
-See [release](https://github.com/Ebedthan/fastchaos) page to download your prefered binary.
-
-
-### Compile it yourself
+## Installation
 
 ```bash
 git clone https://github.com/Ebedthan/fastchaos.git
@@ -41,29 +22,19 @@ cd fastchaos
 cargo build --release
 ```
 
-## 3 - Usage
-
-### Encoding DNA sequence into integer chaos game representation
+## User guide
 
 ```bash
+# Encoding DNA sequence into integer chaos game representation
 fastchaos encode seq.fa
-```
 
-### Decoding integer chaos game representation into DNA sequence
-
-```bash
+# Decoding integer chaos game representation into DNA sequence
 fastchaos decode seq.icgr
-```
 
-### Draw chaos game representation of DNA sequence
-
-```bash
+# Draw chaos game representation of DNA sequence
 fastchaos draw seq.fa
-```
 
-### Compare multiple chaos game representation image using DSSIM
-
-```bash
+# Compare multiple chaos game representation image using DSSIM
 fastchaos compare images_dir
 ```
 

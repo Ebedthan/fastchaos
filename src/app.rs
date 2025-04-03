@@ -3,29 +3,22 @@
 // This file may not be copied, modified, or distributed except according
 // to those terms.
 
-use clap::{crate_version, value_parser, Arg, ArgAction, ColorChoice, Command};
+use clap::{value_parser, Arg, ArgAction, Command};
 use std::path::PathBuf;
 
 pub fn build_app() -> Command {
-    let clap_color_setting = if std::env::var_os("NO_COLOR").is_none() {
-        ColorChoice::Always
-    } else {
-        ColorChoice::Never
-    };
-
     Command::new("fastchaos")
         .override_usage("fastchaos [command] [options] <INFILE>")
-        .version(crate_version!())
+        .version("1.0")
         .author("Anicet Ebou <anicet.ebou@gmail.com>")
         .about(
             "Rapid encoding, decoding and analysis of DNA sequences with Chaos Game Representation",
         )
-        .color(clap_color_setting)
         .subcommand(
             Command::new("encode")
                 .about("Encode a DNA sequence into integer Chaos Game Representation")
                 .override_usage("fastchaos encode [options] <INFILE>")
-                .version(crate_version!())
+                .version("1.0")
                 .author("Anicet Ebou <anicet.ebou@gmail.com>")
                 .arg(
                     Arg::new("INFILE")
@@ -46,7 +39,7 @@ pub fn build_app() -> Command {
             Command::new("decode")
                 .about("Decode a sequence integer Chaos Game Representation to DNA")
                 .override_usage("fastchaos decode [options] <INFILE>")
-                .version(crate_version!())
+                .version("1.0")
                 .author("Anicet Ebou <anicet.ebou@gmail.com>")
                 .arg(
                     Arg::new("INFILE")
@@ -82,7 +75,7 @@ pub fn build_app() -> Command {
             Command::new("draw")
                 .about("Draw Chaos Game Representation to from sequence file")
                 .override_usage("fastchaos draw [options] <INFILE>")
-                .version(crate_version!())
+                .version("1.0")
                 .author("Anicet Ebou <anicet.ebou@gmail.com>")
                 .arg(
                     Arg::new("INFILE")
@@ -102,7 +95,7 @@ pub fn build_app() -> Command {
             Command::new("compare")
                 .about("SSIM comparison of chaos game representation images of genomes")
                 .override_usage("fastchaos compare [options] <QUERY> <REFERENCE>")
-                .version(crate_version!())
+                .version("1.0")
                 .author("Anicet Ebou <anicet.ebou@gmail.com>")
                 .arg(Arg::new("QUERY").help("query sequence").index(1))
                 .arg(Arg::new("REFERENCE").help("reference sequence").index(2))

@@ -12,13 +12,16 @@ use imgref::*;
 use load_image::*;
 
 // Copied https://github.com/kornelski/dssim/blob/f3e2191efed786081f780ddea08a1e6027f31680/src/lib.rs#L10
+/// Loading images
 /// Load PNG or JPEG image from the given path. Applies color profiles and converts to sRGB.
 pub fn load_image(attr: &Dssim, path: impl AsRef<Path>) -> Result<DssimImage<f32>, lodepng::Error> {
     load(attr, path.as_ref())
 }
 
+/// Image loading helper function.
 fn load(attr: &Dssim, path: &Path) -> lodepng::Result<DssimImage<f32>, lodepng::Error> {
-    let img = load_image::load_path(path).unwrap();
+    let img = load_image::load_path(path).map_err(|_| lodepng::Error::new(1))?;
+
     Ok(match img.bitmap {
         ImageData::RGB8(ref bitmap) => {
             attr.create_image(&Img::new(bitmap.to_rgblu(), img.width, img.height))
@@ -48,27 +51,37 @@ fn load(attr: &Dssim, path: &Path) -> lodepng::Result<DssimImage<f32>, lodepng::
     .expect("infallible"))
 }
 
+/// Get image function
 pub fn get_image(file: &PathBuf) -> anyhow::Result<(DssimImage<f32>, String)> {
     let attr = Dssim::new();
     let image = load_image(&attr, file)?;
-    Ok((image, file.to_str().unwrap().to_string()))
+    let filename = file
+        .to_str()
+        .ok_or_else(|| anyhow::anyhow!("Invalid UTF-8 in file path"))?;
+    Ok((image, filename.to_string()))
 }
 
+// Read lines from a file
 pub fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>>
 where
     P: AsRef<Path>,
 {
-    let file = File::open(filename)?;
+    let file = File::open(&filename).map_err(|e| {
+        eprintln!("Error opening file {:?}: {}", filename.as_ref(), e);
+        e
+    })?;
     Ok(io::BufReader::new(file).lines())
 }
 
+/// Compare image dimensions
 pub fn is_same_width_height(
     img1: &(DssimImage<f32>, String),
     img2: &(DssimImage<f32>, String),
 ) -> bool {
-    img1.0.width() == img2.0.width() || img1.0.height() == img2.0.height()
+    img1.0.width() == img2.0.width() && img1.0.height() == img2.0.height()
 }
 
+/// Error message for size mismatch
 pub fn eimgprint(img1: &(DssimImage<f32>, String), img2: &(DssimImage<f32>, String)) {
     eprintln!(
         "Image {} has a different size ({}x{}) than {} ({}x{})\n",

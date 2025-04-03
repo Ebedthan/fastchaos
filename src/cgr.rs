@@ -6,7 +6,7 @@
 use std::fmt;
 use std::fs::File;
 use std::io::{self, BufReader};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process;
 use std::str;
 
@@ -28,78 +28,53 @@ pub struct Chaos {
 }
 
 impl Chaos {
-    fn draw(&self, outdir: &PathBuf) -> anyhow::Result<String> {
+    /// Draws the CGR and saves it as a PNG file
+    fn draw(&self, outdir: &Path) -> anyhow::Result<()> {
         let png = format!("{}.png", self.id);
-        let mut opath = PathBuf::from(outdir);
-        opath.push(&png);
+        let opath = outdir.join(&png);
 
         let root_area = BitMapBackend::new(&opath, (1024, 768)).into_drawing_area();
-
-        root_area.fill(&WHITE).unwrap();
+        root_area.fill(&WHITE)?;
 
         let mut ctx = ChartBuilder::on(&root_area)
             .set_label_area_size(LabelAreaPosition::Left, 40)
             .set_label_area_size(LabelAreaPosition::Bottom, 40)
-            .build_cartesian_2d(-1f64..1f64, -1f64..1f64)
-            .unwrap();
-        ctx.configure_mesh().draw().unwrap();
+            .build_cartesian_2d(-1f64..1f64, -1f64..1f64)?;
+        ctx.configure_mesh().draw()?;
 
         ctx.draw_series(
             self.cgrs
                 .iter()
-                .map(|point| Circle::new(*point, 2, ShapeStyle::from(&BLACK).filled())),
-        )
-        .unwrap();
-
-        Ok(png.clone())
+                .map(|&point| Circle::new(point, 2, BLACK.filled())),
+        )?;
+        Ok(())
     }
 }
 
+/// Trait for converting DNA sequences to Chaos Game Representation (CGR)
 trait DnaToChaos {
     fn record_to_chaos(&self) -> Chaos;
 }
 
 impl DnaToChaos for fasta::Record {
     fn record_to_chaos(&self) -> Chaos {
-        let mut result: Vec<(f64, f64)> = Vec::new();
+        let mut result = Vec::with_capacity(self.sequence().len());
 
-        let an = [1.00, 1.00];
-        let tn = [-1.00, 1.00];
-        let cn = [-1.00, -1.00];
-        let gn = [1.00, -1.00];
-        let mut aa;
-        let mut bb;
+        let nucleotides = [
+            (b'A', [1.0, 1.0]),
+            (b'T', [-1.0, 1.0]),
+            (b'C', [-1.0, -1.0]),
+            (b'G', [1.0, -1.0]),
+        ];
 
-        for (index, nucleotide) in self.sequence().as_ref().iter().enumerate() {
-            if index == 0 {
-                if *nucleotide == b'A' {
-                    aa = an[0] * 0.5;
-                    bb = an[1] * 0.5;
-                } else if *nucleotide == b'T' {
-                    aa = tn[0] * 0.5;
-                    bb = tn[1] * 0.5;
-                } else if *nucleotide == b'C' {
-                    aa = cn[0] * 0.5;
-                    bb = cn[1] * 0.5;
-                } else {
-                    aa = gn[0] * 0.5;
-                    bb = gn[1] * 0.5;
-                }
-            } else if *nucleotide == b'A' {
-                aa = 0.5 * (result[index - 1].0 + an[0]);
-                bb = 0.5 * (result[index - 1].1 + an[1]);
-            } else if *nucleotide == b'T' {
-                aa = 0.5 * (result[index - 1].0 + tn[0]);
-                bb = 0.5 * (result[index - 1].1 + tn[1]);
-            } else if *nucleotide == b'C' {
-                aa = 0.5 * (result[index - 1].0 + cn[0]);
-                bb = 0.5 * (result[index - 1].1 + cn[1]);
-            } else {
-                aa = 0.5 * (result[index - 1].0 + gn[0]);
-                bb = 0.5 * (result[index - 1].1 + gn[1]);
+        let mut coords = (0.0, 0.0);
+
+        for nucleotide in self.sequence().as_ref() {
+            if let Some(&(_, pos)) = nucleotides.iter().find(|&&(n, _)| n == *nucleotide) {
+                coords.0 = 0.5 * (coords.0 + pos[0]);
+                coords.1 = 0.5 * (coords.1 + pos[1]);
+                result.push(coords);
             }
-
-            result.push((aa, bb));
         }
 
         Chaos {
@@ -109,24 +84,19 @@ impl DnaToChaos for fasta::Record {
     }
 }
 
-pub fn draw<R: io::Read>(source: R, destination: PathBuf) -> anyhow::Result<String> {
+/// Reads a FASTA file, generates its CGR, and saves it as an image.
+pub fn draw<R: io::Read>(source: R, destination: &Path) -> anyhow::Result<String> {
     let mut reader = fasta::Reader::new(BufReader::new(source));
 
-    let mut img_name = String::new();
-    for result in reader.records() {
-        // Unwrap record
-        let record = result?;
-
-        // Convert record to chaos
-        let chaos = record.record_to_chaos();
-
-        // Draw CGR of chao
-        img_name = chaos.draw(&destination)?;
+    for record in reader.records() {
+        let chaos = record?.record_to_chaos();
+        chaos.draw(destination)?;
     }
 
-    Ok(img_name)
+    Err(anyhow::anyhow!("No records found in FASTA file."))
 }
 
+/// Structure to store SSIM results
 #[derive(Debug)]
 pub struct SSIMResult {
     query: String,
@@ -136,16 +106,16 @@ pub struct SSIMResult {
 
 impl SSIMResult {
     pub fn new() -> Self {
-        SSIMResult {
+        Self {
             query: String::new(),
             reference: String::new(),
-            ssim: 0_f64,
+            ssim: 0.0,
         }
     }
-    fn add(&mut self, q: String, r: String, s: f64) {
-        self.query = q;
-        self.reference = r;
-        self.ssim = s;
+    fn add(&mut self, query: String, reference: String, ssim: f64) {
+        self.query = query;
+        self.reference = reference;
+        self.ssim = ssim;
     }
 }
 
@@ -157,35 +127,30 @@ impl fmt::Display for SSIMResult {
             Path::new(&self.query)
                 .file_name()
                 .unwrap()
-                .to_str()
-                .unwrap(),
+                .to_string_lossy(),
             Path::new(&self.reference)
                 .file_name()
                 .unwrap()
-                .to_str()
-                .unwrap(),
+                .to_string_lossy(),
             self.ssim
         )
     }
 }
 
-pub fn compare_genomes(query: &String, reference: &String) -> anyhow::Result<SSIMResult> {
+/// Compares two genome sequences based on CGR images
+pub fn compare_genomes(query: &str, reference: &str) -> anyhow::Result<SSIMResult> {
     // Create temporary directory
     let dir = tempdir()?;
 
     let attr = dssim_core::Dssim::new();
     let mut result = SSIMResult::new();
 
-    // Draw images from sequences
-    let qfile = File::open(query)?;
-    let rfile = File::open(reference)?;
-
-    let qimg = draw(qfile, dir.path().to_path_buf())?;
-    let rimg = draw(rfile, dir.path().to_path_buf())?;
+    let qimg = draw(File::open(query)?, dir.path())?;
+    let rimg = draw(File::open(reference)?, dir.path())?;
 
     // Read images
-    let qimage = utils::get_image(&dir.path().join(qimg))?;
-    let rimage = utils::get_image(&dir.path().join(rimg))?;
+    let qimage = utils::get_image(&dir.path().join(&qimg))?;
+    let rimage = utils::get_image(&dir.path().join(&rimg))?;
 
     if utils::is_same_width_height(&qimage, &rimage) {
         let (dssim, _) = attr.compare(&qimage.0, &rimage.0);
@@ -240,22 +205,11 @@ mod tests {
             ],
         };
 
-        let mut ot = PathBuf::from(odir);
+        let ot = Path::new(odir);
         std::fs::create_dir(&ot).unwrap();
-        ot.push("sq0_cgr.png");
 
-        chaos.draw(&PathBuf::from(odir)).unwrap();
+        chaos.draw(&ot).unwrap();
 
-        /*
-        assert_eq!(
-            gr,
-            vec![(
-                ot.to_str().unwrap().to_string(),
-                ot.to_str().unwrap().to_string(),
-                0_f64
-            )]
-        );*/
-
-        fs::remove_dir_all(&ot.parent().unwrap()).unwrap();
+        fs::remove_dir_all(&ot).unwrap();
     }
 }

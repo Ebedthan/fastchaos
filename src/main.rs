@@ -100,14 +100,14 @@ fn main() -> anyhow::Result<()> {
         let input = matches.get_one::<PathBuf>("INFILE").unwrap();
         match matches.get_one::<String>("output") {
             Some(output) => {
-                let destination = PathBuf::from(output);
+                let destination = Path::new(output);
                 let source = fs::File::open(input)?;
-                let _ = cgr::draw(source, destination)?;
+                cgr::draw(source, destination)?;
             }
 
             None => {
                 let source = fs::File::open(input)?;
-                let _ = cgr::draw(source, PathBuf::from("."))?;
+                cgr::draw(source, Path::new("."))?;
             }
         }
 

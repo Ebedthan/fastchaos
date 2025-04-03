@@ -1,4 +1,4 @@
-// Copyright 2021-2024 Anicet Ebou.
+// Copyright 2021-2025 Anicet Ebou.
 // Licensed under the MIT license (http://opensource.org/licenses/MIT)
 // This file may not be copied, modified, or distributed except according
 // to those terms.
@@ -76,10 +76,7 @@ fn main() -> anyhow::Result<()> {
             None => {
                 let output = input.as_path().with_extension("icgr"); // TODO: Verify
                 if output.exists() && !matches.get_flag("force") {
-                    eprintln!(
-                        "error: cannot decode to {:?}, file already exists",
-                        output
-                    );
+                    eprintln!("error: cannot decode to {:?}, file already exists", output);
                     std::process::exit(1);
                 } else {
                     let destination = fs::OpenOptions::new()
@@ -127,40 +124,28 @@ fn main() -> anyhow::Result<()> {
             let mut qfiles = Vec::new();
             let mut rfiles = Vec::new();
             if matches.contains_id("QUERY") && matches.contains_id("refs") {
-                if let Ok(lines) = utils::read_lines(
-                    matches.get_one::<PathBuf>("refs").unwrap(),
-                ) {
+                if let Ok(lines) = utils::read_lines(matches.get_one::<PathBuf>("refs").unwrap()) {
                     for line in lines.map_while(Result::ok) {
                         rfiles.push(line);
                     }
                 }
-                qfiles.push(
-                    matches.get_one::<String>("QUERY").unwrap().to_string(),
-                );
-            } else if matches.contains_id("REFERENCE")
-                && matches.contains_id("queries")
-            {
-                if let Ok(lines) = utils::read_lines(
-                    matches.get_one::<PathBuf>("queries").unwrap(),
-                ) {
+                qfiles.push(matches.get_one::<String>("QUERY").unwrap().to_string());
+            } else if matches.contains_id("REFERENCE") && matches.contains_id("queries") {
+                if let Ok(lines) = utils::read_lines(matches.get_one::<PathBuf>("queries").unwrap())
+                {
                     for line in lines.map_while(Result::ok) {
                         qfiles.push(line);
                     }
                 }
-                rfiles.push(
-                    matches.get_one::<String>("REFERENCE").unwrap().to_string(),
-                );
+                rfiles.push(matches.get_one::<String>("REFERENCE").unwrap().to_string());
             } else {
-                if let Ok(lines) = utils::read_lines(
-                    matches.get_one::<PathBuf>("queries").unwrap(),
-                ) {
+                if let Ok(lines) = utils::read_lines(matches.get_one::<PathBuf>("queries").unwrap())
+                {
                     for line in lines.map_while(Result::ok) {
                         qfiles.push(line);
                     }
                 }
-                if let Ok(lines) = utils::read_lines(
-                    matches.get_one::<PathBuf>("refs").unwrap(),
-                ) {
+                if let Ok(lines) = utils::read_lines(matches.get_one::<PathBuf>("refs").unwrap()) {
                     for line in lines.map_while(Result::ok) {
                         rfiles.push(line);
                     }

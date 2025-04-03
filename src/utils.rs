@@ -1,4 +1,4 @@
-// Copyright 2021-2024 Anicet Ebou.
+// Copyright 2021-2025 Anicet Ebou.
 // Licensed under the MIT license (http://opensource.org/licenses/MIT)
 // This file may not be copied, modified, or distributed except according
 // to those terms.
@@ -13,59 +13,37 @@ use load_image::*;
 
 // Copied https://github.com/kornelski/dssim/blob/f3e2191efed786081f780ddea08a1e6027f31680/src/lib.rs#L10
 /// Load PNG or JPEG image from the given path. Applies color profiles and converts to sRGB.
-pub fn load_image(
-    attr: &Dssim,
-    path: impl AsRef<Path>,
-) -> Result<DssimImage<f32>, lodepng::Error> {
+pub fn load_image(attr: &Dssim, path: impl AsRef<Path>) -> Result<DssimImage<f32>, lodepng::Error> {
     load(attr, path.as_ref())
 }
 
-fn load(
-    attr: &Dssim,
-    path: &Path,
-) -> lodepng::Result<DssimImage<f32>, lodepng::Error> {
+fn load(attr: &Dssim, path: &Path) -> lodepng::Result<DssimImage<f32>, lodepng::Error> {
     let img = load_image::load_path(path).unwrap();
     Ok(match img.bitmap {
-        ImageData::RGB8(ref bitmap) => attr.create_image(&Img::new(
-            bitmap.to_rgblu(),
-            img.width,
-            img.height,
-        )),
-        ImageData::RGB16(ref bitmap) => attr.create_image(&Img::new(
-            bitmap.to_rgblu(),
-            img.width,
-            img.height,
-        )),
-        ImageData::RGBA8(ref bitmap) => attr.create_image(&Img::new(
-            bitmap.to_rgbaplu(),
-            img.width,
-            img.height,
-        )),
-        ImageData::RGBA16(ref bitmap) => attr.create_image(&Img::new(
-            bitmap.to_rgbaplu(),
-            img.width,
-            img.height,
-        )),
-        ImageData::GRAY8(ref bitmap) => attr.create_image(&Img::new(
-            bitmap.to_rgblu(),
-            img.width,
-            img.height,
-        )),
-        ImageData::GRAY16(ref bitmap) => attr.create_image(&Img::new(
-            bitmap.to_rgblu(),
-            img.width,
-            img.height,
-        )),
-        ImageData::GRAYA8(ref bitmap) => attr.create_image(&Img::new(
-            bitmap.to_rgbaplu(),
-            img.width,
-            img.height,
-        )),
-        ImageData::GRAYA16(ref bitmap) => attr.create_image(&Img::new(
-            bitmap.to_rgbaplu(),
-            img.width,
-            img.height,
-        )),
+        ImageData::RGB8(ref bitmap) => {
+            attr.create_image(&Img::new(bitmap.to_rgblu(), img.width, img.height))
+        }
+        ImageData::RGB16(ref bitmap) => {
+            attr.create_image(&Img::new(bitmap.to_rgblu(), img.width, img.height))
+        }
+        ImageData::RGBA8(ref bitmap) => {
+            attr.create_image(&Img::new(bitmap.to_rgbaplu(), img.width, img.height))
+        }
+        ImageData::RGBA16(ref bitmap) => {
+            attr.create_image(&Img::new(bitmap.to_rgbaplu(), img.width, img.height))
+        }
+        ImageData::GRAY8(ref bitmap) => {
+            attr.create_image(&Img::new(bitmap.to_rgblu(), img.width, img.height))
+        }
+        ImageData::GRAY16(ref bitmap) => {
+            attr.create_image(&Img::new(bitmap.to_rgblu(), img.width, img.height))
+        }
+        ImageData::GRAYA8(ref bitmap) => {
+            attr.create_image(&Img::new(bitmap.to_rgbaplu(), img.width, img.height))
+        }
+        ImageData::GRAYA16(ref bitmap) => {
+            attr.create_image(&Img::new(bitmap.to_rgbaplu(), img.width, img.height))
+        }
     }
     .expect("infallible"))
 }
@@ -91,10 +69,7 @@ pub fn is_same_width_height(
     img1.0.width() == img2.0.width() || img1.0.height() == img2.0.height()
 }
 
-pub fn eimgprint(
-    img1: &(DssimImage<f32>, String),
-    img2: &(DssimImage<f32>, String),
-) {
+pub fn eimgprint(img1: &(DssimImage<f32>, String), img2: &(DssimImage<f32>, String)) {
     eprintln!(
         "Image {} has a different size ({}x{}) than {} ({}x{})\n",
         img1.1,
@@ -119,13 +94,11 @@ mod tests {
         let (diff, _) = attr.compare(&prof_jpg, prof_png);
         assert!(diff <= 0.002);
 
-        let strip_jpg =
-            load_image(&attr, "tests/profile-stripped.jpg").unwrap();
+        let strip_jpg = load_image(&attr, "tests/profile-stripped.jpg").unwrap();
         let (diff, _) = attr.compare(&strip_jpg, prof_jpg);
         assert!(diff > 0.008, "{}", diff);
 
-        let strip_png =
-            load_image(&attr, "tests/profile-stripped.png").unwrap();
+        let strip_png = load_image(&attr, "tests/profile-stripped.png").unwrap();
         let (diff, _) = attr.compare(&strip_jpg, strip_png);
 
         assert!(diff > 0.009, "{}", diff);
@@ -168,8 +141,7 @@ mod tests {
     #[test]
     fn rgblu_input() {
         let ctx = Dssim::new();
-        let im: ImgVec<RGBLU> =
-            Img::new(vec![export::rgb::RGB::new(0., 0., 0.)], 1, 1);
+        let im: ImgVec<RGBLU> = Img::new(vec![export::rgb::RGB::new(0., 0., 0.)], 1, 1);
         let imr: ImgRef<'_, RGBLU> = im.as_ref();
         ctx.create_image(&imr);
     }

@@ -1,4 +1,4 @@
-// Copyright 2021-2024 Anicet Ebou.
+// Copyright 2021-2025 Anicet Ebou.
 // Licensed under the MIT license (http://opensource.org/licenses/MIT)
 // This file may not be copied, modified, or distributed except according
 // to those terms.
@@ -34,10 +34,7 @@ impl IChaos {
 
     fn to_fasta(&self) -> fasta::Record {
         fasta::Record::new(
-            fasta::record::Definition::new(
-                &self.id,
-                Some(self.desc.as_ref().unwrap().to_string()),
-            ),
+            fasta::record::Definition::new(&self.id, Some(self.desc.as_ref().unwrap().to_string())),
             fasta::record::Sequence::from(self.clone().decode_icgr()),
         )
     }
@@ -69,8 +66,7 @@ impl IChaos {
                 }
             }
             seq.reverse();
-            let merged: Vec<u8> =
-                seq.par_iter().map(|c| *c as u8).collect::<Vec<_>>();
+            let merged: Vec<u8> = seq.par_iter().map(|c| *c as u8).collect::<Vec<_>>();
 
             complete_dna.extend(merged);
         }
@@ -261,17 +257,11 @@ fn get_cgr_vertex(x: i128, y: i128) -> Result<(i128, i128)> {
 
 /// Function generating an iterator of chunks of sequence
 #[inline]
-fn str_chunks<'a>(
-    s: &'a str,
-    n: usize,
-) -> Box<dyn Iterator<Item = &'a str> + 'a> {
+fn str_chunks<'a>(s: &'a str, n: usize) -> Box<dyn Iterator<Item = &'a str> + 'a> {
     Box::new(s.as_bytes().chunks(n).map(|c| str::from_utf8(c).unwrap()))
 }
 
-pub fn encode<R: io::Read, W: io::Write>(
-    source: R,
-    mut destination: W,
-) -> Result<()> {
+pub fn encode<R: io::Read, W: io::Write>(source: R, mut destination: W) -> Result<()> {
     // Openning stream using noodle fasta reader
     let mut reader = fasta::Reader::new(BufReader::new(source));
 
@@ -293,15 +283,10 @@ pub fn encode<R: io::Read, W: io::Write>(
     Ok(())
 }
 
-pub fn decode<R: io::Read, W: io::Write>(
-    source: R,
-    mut destination: W,
-) -> Result<()> {
+pub fn decode<R: io::Read, W: io::Write>(source: R, mut destination: W) -> Result<()> {
     // Decompress stream with zstd decompress
-    let stream = serde_json::Deserializer::from_reader(
-        stream::read::Decoder::new(source)?,
-    )
-    .into_iter::<IChaos>();
+    let stream = serde_json::Deserializer::from_reader(stream::read::Decoder::new(source)?)
+        .into_iter::<IChaos>();
 
     for result in stream {
         // Unwrapping to get ichaos
@@ -389,7 +374,8 @@ mod tests {
         );
         assert_eq!(
             ichaos.to_json(),
-            "{\"id\":\"sq0\",\"desc\":\"\",\"icgrs\":[{\"x\":\"659\",\"y\":\"783\",\"n\":10}]}".to_string()
+            "{\"id\":\"sq0\",\"desc\":\"\",\"icgrs\":[{\"x\":\"659\",\"y\":\"783\",\"n\":10}]}"
+                .to_string()
         );
 
         assert_eq!(ichaos.decode_icgr(), b"ATTGCCGTAA".to_vec());
@@ -412,8 +398,7 @@ mod tests {
 
     #[test]
     fn test_encode_decode() {
-        let file =
-            std::fs::File::open("tests/homo_sapiens_mitochondrion.fa").unwrap();
+        let file = std::fs::File::open("tests/homo_sapiens_mitochondrion.fa").unwrap();
 
         let destination = std::fs::OpenOptions::new()
             .create(true)
@@ -422,11 +407,7 @@ mod tests {
             .unwrap();
 
         assert!(encode(&file, &destination).is_ok());
-        assert!(decode(
-            std::fs::File::open("homo.icgr").unwrap(),
-            io::stdout()
-        )
-        .is_ok());
+        assert!(decode(std::fs::File::open("homo.icgr").unwrap(), io::stdout()).is_ok());
 
         std::fs::remove_file("homo.icgr").unwrap();
     }

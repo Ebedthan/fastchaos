@@ -1,4 +1,4 @@
-// Copyright 2021-2024 Anicet Ebou.
+// Copyright 2021-2025 Anicet Ebou.
 // Licensed under the MIT license (http://opensource.org/licenses/MIT)
 // This file may not be copied, modified, or distributed except according
 // to those terms.
@@ -33,8 +33,7 @@ impl Chaos {
         let mut opath = PathBuf::from(outdir);
         opath.push(&png);
 
-        let root_area =
-            BitMapBackend::new(&opath, (1024, 768)).into_drawing_area();
+        let root_area = BitMapBackend::new(&opath, (1024, 768)).into_drawing_area();
 
         root_area.fill(&WHITE).unwrap();
 
@@ -45,9 +44,11 @@ impl Chaos {
             .unwrap();
         ctx.configure_mesh().draw().unwrap();
 
-        ctx.draw_series(self.cgrs.iter().map(|point| {
-            Circle::new(*point, 2, ShapeStyle::from(&BLACK).filled())
-        }))
+        ctx.draw_series(
+            self.cgrs
+                .iter()
+                .map(|point| Circle::new(*point, 2, ShapeStyle::from(&BLACK).filled())),
+        )
         .unwrap();
 
         Ok(png.clone())
@@ -108,10 +109,7 @@ impl DnaToChaos for fasta::Record {
     }
 }
 
-pub fn draw<R: io::Read>(
-    source: R,
-    destination: PathBuf,
-) -> anyhow::Result<String> {
+pub fn draw<R: io::Read>(source: R, destination: PathBuf) -> anyhow::Result<String> {
     let mut reader = fasta::Reader::new(BufReader::new(source));
 
     let mut img_name = String::new();
@@ -171,10 +169,7 @@ impl fmt::Display for SSIMResult {
     }
 }
 
-pub fn compare_genomes(
-    query: &String,
-    reference: &String,
-) -> anyhow::Result<SSIMResult> {
+pub fn compare_genomes(query: &String, reference: &String) -> anyhow::Result<SSIMResult> {
     // Create temporary directory
     let dir = tempdir()?;
 

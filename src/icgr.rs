@@ -3,79 +3,19 @@
 // This file may not be copied, modified, or distributed except according
 // to those terms.
 
+use rayon::iter::ParallelIterator;
 use std::fmt;
 use std::io::{self, BufReader};
 use std::str;
 
 use anyhow::Result;
 use noodles::fasta;
-use rayon::prelude::*;
+use rayon::iter::IntoParallelIterator;
 use serde::{Deserialize, Serialize};
 use zstd::stream;
 
-/// The Integer Chaos Game Representation Format ------------------------------
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct IChaos {
-    /// A DNA sequence ID: all characters before first whitespace in sequence header
-    id: String,
-
-    /// A DNA sequence description: all characters after first whitespace
-    desc: Option<String>,
-
-    /// A vector of ICGR which represent the whole DNA sequence
-    icgrs: Vec<Icgr>,
-}
-
-impl IChaos {
-    #[inline]
-    fn length(&self) -> usize {
-        self.icgrs.par_iter().map(|x| x.n).sum()
-    }
-
-    fn to_fasta(&self) -> fasta::Record {
-        fasta::Record::new(
-            fasta::record::Definition::new(&self.id, Some(self.desc.as_ref().unwrap().to_string())),
-            fasta::record::Sequence::from(self.clone().decode_icgr()),
-        )
-    }
-
-    #[inline]
-    fn to_json(&self) -> String {
-        serde_json::to_string(self).expect("Cannot convert IChaos to JSON")
-    }
-
-    fn decode_icgr(&self) -> Vec<u8> {
-        let mut complete_dna = Vec::with_capacity(self.length());
-
-        for icgr in &self.icgrs {
-            let mut an: Vec<i128> = vec![0; icgr.n];
-            let mut bn: Vec<i128> = vec![0; icgr.n];
-            an[icgr.n - 1] = icgr.x.parse::<i128>().unwrap();
-            bn[icgr.n - 1] = icgr.y.parse::<i128>().unwrap();
-            let base: i128 = 2;
-
-            let mut seq = Vec::with_capacity(icgr.n);
-
-            for index in (0..icgr.n).step_by(1).rev() {
-                let nucleotide = get_nucleotide(an[index], bn[index]).unwrap();
-                seq.push(nucleotide);
-                let (f, g) = get_cgr_vertex(an[index], bn[index]).unwrap();
-                if index != 0 {
-                    an[index - 1] = an[index] - base.pow(index as u32) * f;
-                    bn[index - 1] = bn[index] - base.pow(index as u32) * g;
-                }
-            }
-            seq.reverse();
-            let merged: Vec<u8> = seq.par_iter().map(|c| *c as u8).collect::<Vec<_>>();
-
-            complete_dna.extend(merged);
-        }
-
-        complete_dna
-    }
-}
-
 /// Integer Chaos Game Representation (ICGR) for a sequence
+/// Using Strings for serialization compatibility.
 /// Not all platforms supports 128 bits integers along
 /// with Rust versions before 1.26
 /// Moreover, serde_json does not yet support i128
@@ -99,159 +39,172 @@ impl fmt::Display for Icgr {
     }
 }
 
+/// Representation of a DNA sequence using the Integer Chaos Game Representation (ICGR) method.
+///
+/// This struct represents a DNA sequence using the Integer Chaos Game Representation (ICGR) method.
+/// It contains a vector of ICGR which represent the whole DNA sequence.
+///
+/// # Examples
+///
+/// ```
+/// use fastchaos::icgr::IChaos;
+///
+/// let icgr = IChaos::new("seq1", "description", vec![1, 2, 3]);
+/// assert_eq!(icgr.id(), "seq1");
+/// assert_eq!(icgr.desc(), Some("description"));
+/// assert_eq!(icgr.icgrs(), &[1, 2, 3]);
+/// ```
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct IChaos {
+    /// A DNA sequence ID: all characters before first whitespace in sequence header
+    id: String,
+
+    /// A DNA sequence description: all characters after first whitespace
+    desc: Option<String>,
+
+    /// A vector of ICGR which represent the whole DNA sequence
+    icgrs: Vec<Icgr>,
+}
+
+impl IChaos {
+    /// Computes the total length of the DNA sequence represented by the ICGR.
+    fn length(&self) -> usize {
+        self.icgrs.iter().map(|x| x.n).sum()
+    }
+
+    /// Converts the ICGR to a FASTA record.
+    fn to_fasta(&self) -> fasta::Record {
+        let sequence = self.decode_icgr();
+        fasta::Record::new(
+            fasta::record::Definition::new(&self.id, self.desc.clone()),
+            fasta::record::Sequence::from(sequence),
+        )
+    }
+
+    /// Serializes the IChaos object to a JSON string.
+    fn to_json(&self) -> String {
+        serde_json::to_string(self).expect("Failed to serialize IChaos to JSON")
+    }
+
+    /// Decodes ICGR values back into a nucleotide sequence.
+    fn decode_icgr(&self) -> Vec<u8> {
+        let mut complete_dna = Vec::with_capacity(self.length());
+        let base: i128 = 2;
+
+        for icgr in &self.icgrs {
+            let mut an = vec![0; icgr.n];
+            let mut bn = vec![0; icgr.n];
+            an[icgr.n - 1] = icgr.x.parse().unwrap_or(0);
+            bn[icgr.n - 1] = icgr.y.parse().unwrap_or(0);
+
+            let mut seq = Vec::with_capacity(icgr.n);
+
+            for index in (0..icgr.n).rev() {
+                let nucleotide = get_nucleotide(an[index], bn[index]).unwrap_or('N');
+                seq.push(nucleotide);
+                if index > 0 {
+                    let (f, g) = get_cgr_vertex(an[index], bn[index]).unwrap_or((0, 0));
+                    an[index - 1] = an[index] - base.pow(index as u32) * f;
+                    bn[index - 1] = bn[index] - base.pow(index as u32) * g;
+                }
+            }
+            seq.reverse();
+            complete_dna.extend(seq.into_iter().map(|c| c as u8));
+        }
+        complete_dna
+    }
+}
+
 impl Icgr {
     fn from_sequence(sequence: &[u8]) -> Vec<Icgr> {
-        let mut icgrs = Vec::new();
+        let seq = String::from_utf8_lossy(sequence);
+        let seq_length = seq.len();
 
+        let chunks: Vec<&str> = if seq_length > 100 {
+            str_chunks(&seq, 100).collect()
+        } else {
+            vec![&seq]
+        };
+
+        /// Parallelize for large datasets
+        chunks
+            .into_par_iter()
+            .map(|chunk| Self::icgr_from_chunk(chunk))
+            .collect()
+    }
+
+    fn icgr_from_chunk(chunk: &str) -> Icgr {
         let an = [1, 1];
         let tn = [-1, 1];
         let cn = [-1, -1];
         let gn = [1, -1];
         let base: i128 = 2;
 
-        // Get sequence length
-        let seq_length = sequence.len();
-        let seq = String::from_utf8_lossy(sequence);
+        let mut xx = Vec::with_capacity(chunk.len());
+        let mut yy = Vec::with_capacity(chunk.len());
 
-        // ICGR work for sequence with max length of 100 due to
-        // exponentiation of 2 which easily overflow after a certain number
-        if seq_length > 100 {
-            // TODO: try to paralelize this loop
-            for chunk in str_chunks(&seq, 100) {
-                let mut aa;
-                let mut bb;
-                let mut xx: Vec<i128> = Vec::new();
-                let mut yy: Vec<i128> = Vec::new();
-                let chunk_length = chunk.len();
-                // TODO: try to paralelize this loop
-                for (index, nucleotide) in chunk.chars().enumerate() {
-                    if index == 0 {
-                        if nucleotide == 'A' {
-                            aa = an[0];
-                            bb = an[1];
-                        } else if nucleotide == 'T' {
-                            aa = tn[0];
-                            bb = tn[1];
-                        } else if nucleotide == 'C' {
-                            aa = cn[0];
-                            bb = cn[1];
-                        } else {
-                            aa = gn[0];
-                            bb = gn[1];
-                        }
-                    } else {
-                        let new_index = index as u32;
-                        if nucleotide == 'A' {
-                            aa = xx[index - 1] + base.pow(new_index);
-                            bb = yy[index - 1] + base.pow(new_index);
-                        } else if nucleotide == 'T' {
-                            aa = xx[index - 1] - base.pow(new_index);
-                            bb = yy[index - 1] + base.pow(new_index);
-                        } else if nucleotide == 'C' {
-                            aa = xx[index - 1] - base.pow(new_index);
-                            bb = yy[index - 1] - base.pow(new_index);
-                        } else {
-                            aa = xx[index - 1] + base.pow(new_index);
-                            bb = yy[index - 1] - base.pow(new_index);
-                        }
-                    }
-
-                    xx.push(aa);
-                    yy.push(bb);
-                }
-
-                icgrs.push(Icgr {
-                    x: xx[chunk_length - 1].to_string(),
-                    y: yy[chunk_length - 1].to_string(),
-                    n: chunk_length,
-                });
-            }
-        } else {
-            let mut aa;
-            let mut bb;
-            let mut xx: Vec<i128> = Vec::new();
-            let mut yy: Vec<i128> = Vec::new();
-
-            for (index, nucleotide) in seq.chars().enumerate() {
-                if index == 0 {
-                    if nucleotide == 'A' {
-                        aa = an[0];
-                        bb = an[1];
-                    } else if nucleotide == 'T' {
-                        aa = tn[0];
-                        bb = tn[1];
-                    } else if nucleotide == 'C' {
-                        aa = cn[0];
-                        bb = cn[1];
-                    } else {
-                        aa = gn[0];
-                        bb = gn[1];
-                    }
-                } else {
-                    let new_index = index as u32;
-                    if nucleotide == 'A' {
-                        aa = xx[index - 1] + base.pow(new_index);
-                        bb = yy[index - 1] + base.pow(new_index);
-                    } else if nucleotide == 'T' {
-                        aa = xx[index - 1] - base.pow(new_index);
-                        bb = yy[index - 1] + base.pow(new_index);
-                    } else if nucleotide == 'C' {
-                        aa = xx[index - 1] - base.pow(new_index);
-                        bb = yy[index - 1] - base.pow(new_index);
-                    } else {
-                        aa = xx[index - 1] + base.pow(new_index);
-                        bb = yy[index - 1] - base.pow(new_index);
+        for (index, nucleotide) in chunk.chars().enumerate() {
+            let new_index = index as u32;
+            let (aa, bb) = match index {
+                0 => match nucleotide {
+                    'A' => (an[0], an[1]),
+                    'T' => (tn[0], tn[1]),
+                    'C' => (cn[0], cn[1]),
+                    'G' => (gn[0], gn[1]),
+                    _ => (0, 0),
+                },
+                _ => {
+                    let (prev_x, prev_y) = (xx[index - 1], yy[index - 1]);
+                    let power = base.pow(new_index);
+                    match nucleotide {
+                        'A' => (prev_x + power, prev_y + power),
+                        'T' => (prev_x - power, prev_y + power),
+                        'C' => (prev_x - power, prev_y - power),
+                        'G' => (prev_x - power, prev_y - power),
+                        _ => (prev_x, prev_y),
                     }
                 }
-
-                xx.push(aa);
-                yy.push(bb);
-            }
-
-            icgrs.push(Icgr {
-                x: xx[seq_length - 1].to_string(),
-                y: yy[seq_length - 1].to_string(),
-                n: seq_length,
-            });
+            };
+            xx.push(aa);
+            yy.push(bb);
         }
-
-        icgrs
+        let n = chunk.len();
+        Icgr {
+            x: xx[n - 1].to_string(),
+            y: yy[n - 1].to_string(),
+            n,
+        }
     }
 }
 
+/// Converts a FASTA record into IChaos format.
 fn from_record(record: fasta::Record) -> IChaos {
     IChaos {
         id: record.name().to_string(),
-        desc: Some(record.description().unwrap_or("").to_string()),
+        desc: record.description().map(str::to_string),
         icgrs: Icgr::from_sequence(record.sequence().as_ref()),
     }
 }
 
+/// Determines the nucleotide from ICGR coordinates.
 fn get_nucleotide(x: i128, y: i128) -> Result<char> {
-    if x > 0 && y > 0 {
-        Ok('A')
-    } else if x > 0 && y < 0 {
-        Ok('G')
-    } else if x < 0 && y > 0 {
-        Ok('T')
-    } else if x < 0 && y < 0 {
-        Ok('C')
-    } else {
-        Ok('N')
+    match (x.signum(), y.signum()) {
+        (1, 1) => Ok('A'),
+        (1, -1) => Ok('G'),
+        (-1, 1) => Ok('T'),
+        (-1, -1) => Ok('C'),
+        _ => Ok('N'),
     }
 }
 
+/// Determines the CGR vertex from ICGR coordinates.
 fn get_cgr_vertex(x: i128, y: i128) -> Result<(i128, i128)> {
-    if x > 0 && y > 0 {
-        Ok((1, 1))
-    } else if x > 0 && y < 0 {
-        Ok((1, -1))
-    } else if x < 0 && y > 0 {
-        Ok((-1, 1))
-    } else if x < 0 && y < 0 {
-        Ok((-1, -1))
-    } else {
-        Ok((0, 0))
+    match (x.signum(), y.signum()) {
+        (1, 1) => Ok((1, 1)),
+        (1, -1) => Ok((1, -1)),
+        (-1, 1) => Ok((-1, 1)),
+        (-1, -1) => Ok((-1, -1)),
+        _ => Ok((0, 0)),
     }
 }
 
@@ -295,14 +248,12 @@ pub fn decode<R: io::Read, W: io::Write>(source: R, mut destination: W) -> Resul
         // Convert to fasta record
         let record = ichaos.to_fasta();
 
-        destination.write_all(
-            format!(
-                ">{} {}\n{}",
-                record.name(),
-                record.description().unwrap_or(""),
-                String::from_utf8_lossy(record.sequence().as_ref())
-            )
-            .as_bytes(),
+        writeln!(
+            destination,
+            ">{} {}\n{}",
+            record.name(),
+            record.description().unwrap_or(""),
+            String::from_utf8_lossy(record.sequence().as_ref())
         )?;
     }
 
@@ -342,7 +293,7 @@ mod tests {
             from_record(seq),
             IChaos {
                 id: "sq0".to_string(),
-                desc: Some(String::from("")),
+                desc: None,
                 icgrs: vec![Icgr {
                     x: "659".to_string(),
                     y: "783".to_string(),

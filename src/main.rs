@@ -4,11 +4,8 @@
 // to those terms.
 
 use itertools::Itertools;
-
-use std::env;
-use std::fs;
-use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use std::{env, fs, io, io::Write, path::PathBuf};
 
 mod app;
 mod cgr;
@@ -16,173 +13,123 @@ mod icgr;
 mod utils;
 
 fn main() -> anyhow::Result<()> {
-    // Get command line arguments ---------------------------------------------
     let matches = app::build_app().get_matches_from(env::args_os());
 
     let num_threads = matches
         .get_one::<String>("threads")
         .unwrap_or(&"1".to_owned())
-        .parse::<usize>()
-        .unwrap();
-
+        .parse::<usize>()?;
     rayon::ThreadPoolBuilder::new()
         .num_threads(num_threads)
         .build_global()?;
 
-    // Encode subcommand ------------------------------------------------------
-    if let Some(matches) = matches.subcommand_matches("encode") {
-        let input = matches.get_one::<PathBuf>("INFILE").unwrap();
-        let output = format!("{}.icgr", input.display());
-        let destination = fs::OpenOptions::new()
-            .append(true)
-            .create(true)
-            .open(output)?;
+    match matches.subcommand() {
+        Some(("encode", m)) => handle_encode(m),
+        Some(("decode", m)) => handle_decode(m),
+        Some(("draw", m)) => handle_draw(m),
+        Some(("compare", m)) => handle_compare(m),
+        _ => Ok(()), // No valid subcommand
+    }?;
 
-        let source = fs::File::open(input)?;
-        icgr::encode(source, destination)?;
+    std::process::exit(0)
+}
 
-        if !matches.get_flag("keep") {
-            fs::remove_file(input)?;
-        }
+fn handle_encode(matches: &clap::ArgMatches) -> anyhow::Result<()> {
+    let input = utils::read_input_fasta_or_stdin(matches).unwrap();
 
-    // Decode subcommand ------------------------------------------------------
-    } else if let Some(matches) = matches.subcommand_matches("decode") {
-        let input = matches.get_one::<PathBuf>("INFILE").unwrap();
-        if input.extension() != Some(std::ffi::OsStr::new("icgr")) {
-            eprintln!(
-                "error: unknown suffix ({:?}), ignored",
-                input.extension().unwrap()
-            );
+    let destination: Box<dyn Write> = if let Some(output) = matches.get_one::<String>("output") {
+        Box::new(
+            fs::File::create(output).unwrap_or_else(|_| panic!("Failed to opend file: {}", output)),
+        )
+    } else {
+        Box::new(io::stdout().lock())
+    };
+
+    icgr::encode(input, destination)?;
+
+    Ok(())
+}
+
+fn handle_decode(matches: &clap::ArgMatches) -> anyhow::Result<()> {
+    let input = utils::read_input_fasta_or_stdin(matches).unwrap();
+
+    let destination: Box<dyn Write> = if let Some(output) = matches.get_one::<String>("output") {
+        if Path::new(output).exists() && !matches.get_flag("force") {
+            eprintln!("Error: cannot decode to {}, file already exists", output);
             std::process::exit(1);
         }
-        match matches.get_one::<PathBuf>("output") {
-            Some(output) => {
-                if Path::new(output).exists() && !matches.get_flag("force") {
-                    eprintln!(
-                        "error: cannot decode to '{:?}', file already exists",
-                        output
-                    );
-                    std::process::exit(1);
-                } else {
-                    let destination = fs::OpenOptions::new()
-                        .create(true)
-                        .append(true)
-                        .open(output)?;
+        Box::new(
+            fs::File::create(output).unwrap_or_else(|_| panic!("Failed to opend file: {}", output)),
+        )
+    } else {
+        Box::new(io::stdout().lock())
+    };
 
-                    let source = fs::File::open(input)?;
-                    icgr::decode(source, destination)?;
-                }
-            }
-            None => {
-                let output = input.as_path().with_extension("icgr"); // TODO: Verify
-                if output.exists() && !matches.get_flag("force") {
-                    eprintln!("error: cannot decode to {:?}, file already exists", output);
-                    std::process::exit(1);
-                } else {
-                    let destination = fs::OpenOptions::new()
-                        .create(true)
-                        .append(true)
-                        .open(output)?;
+    icgr::decode(input, destination)?;
 
-                    let source = fs::File::open(input)?;
-                    icgr::decode(source, destination)?;
-                }
-            }
+    Ok(())
+}
+
+fn handle_draw(matches: &clap::ArgMatches) -> anyhow::Result<()> {
+    let input = matches.get_one::<PathBuf>("INFILE").unwrap();
+    let destination = matches
+        .get_one::<String>("output")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("."));
+
+    let source = fs::File::open(input)?;
+    cgr::draw(source, &destination)?;
+    Ok(())
+}
+
+fn handle_compare(matches: &clap::ArgMatches) -> anyhow::Result<()> {
+    let mut qfiles = Vec::new();
+    let mut rfiles = Vec::new();
+
+    if matches.contains_id("QUERY") && matches.contains_id("REFERENCE") {
+        qfiles.push(matches.get_one::<String>("QUERY").unwrap().to_string());
+        rfiles.push(matches.get_one::<String>("REFERENCE").unwrap().to_string());
+    } else {
+        if let Some(q_path) = matches.get_one::<PathBuf>("queries") {
+            qfiles = utils::read_lines(q_path)?.map_while(Result::ok).collect();
         }
-
-        // Delete cgr file if not otherwise specified
-        if !matches.get_flag("keep") {
-            fs::remove_file(input)?;
+        if let Some(r_path) = matches.get_one::<PathBuf>("refs") {
+            rfiles = utils::read_lines(r_path)?.map_while(Result::ok).collect();
         }
-
-    // Draw subcommand --------------------------------------------------------
-    } else if let Some(matches) = matches.subcommand_matches("draw") {
-        let input = matches.get_one::<PathBuf>("INFILE").unwrap();
-        match matches.get_one::<String>("output") {
-            Some(output) => {
-                let destination = Path::new(output);
-                let source = fs::File::open(input)?;
-                cgr::draw(source, destination)?;
-            }
-
-            None => {
-                let source = fs::File::open(input)?;
-                cgr::draw(source, Path::new("."))?;
-            }
+        if matches.contains_id("QUERY") {
+            qfiles.push(matches.get_one::<String>("QUERY").unwrap().to_string());
         }
-
-    // Compare subcommand -----------------------------------------------------
-    } else if let Some(matches) = matches.subcommand_matches("compare") {
-        let mut ssim = Vec::new();
-
-        if matches.contains_id("QUERY") && matches.contains_id("REFERENCE") {
-            ssim.push(cgr::compare_genomes(
-                matches.get_one::<String>("QUERY").unwrap(),
-                matches.get_one::<String>("REFERENCE").unwrap(),
-            )?);
-        } else {
-            let mut qfiles = Vec::new();
-            let mut rfiles = Vec::new();
-            if matches.contains_id("QUERY") && matches.contains_id("refs") {
-                if let Ok(lines) = utils::read_lines(matches.get_one::<PathBuf>("refs").unwrap()) {
-                    for line in lines.map_while(Result::ok) {
-                        rfiles.push(line);
-                    }
-                }
-                qfiles.push(matches.get_one::<String>("QUERY").unwrap().to_string());
-            } else if matches.contains_id("REFERENCE") && matches.contains_id("queries") {
-                if let Ok(lines) = utils::read_lines(matches.get_one::<PathBuf>("queries").unwrap())
-                {
-                    for line in lines.map_while(Result::ok) {
-                        qfiles.push(line);
-                    }
-                }
-                rfiles.push(matches.get_one::<String>("REFERENCE").unwrap().to_string());
-            } else {
-                if let Ok(lines) = utils::read_lines(matches.get_one::<PathBuf>("queries").unwrap())
-                {
-                    for line in lines.map_while(Result::ok) {
-                        qfiles.push(line);
-                    }
-                }
-                if let Ok(lines) = utils::read_lines(matches.get_one::<PathBuf>("refs").unwrap()) {
-                    for line in lines.map_while(Result::ok) {
-                        rfiles.push(line);
-                    }
-                }
-            }
-            if matches.get_flag("allvsall") {
-                qfiles.extend(rfiles);
-
-                let it = qfiles.into_iter().combinations_with_replacement(2);
-
-                for comb in it {
-                    ssim.push(cgr::compare_genomes(&comb[0], &comb[1])?);
-                }
-            } else {
-                let it = qfiles.iter().cartesian_product(rfiles.iter());
-
-                for prod in it {
-                    ssim.push(cgr::compare_genomes(prod.0, prod.1)?);
-                }
-            }
-        }
-
-        if matches.contains_id("output") {
-            let mut out = fs::OpenOptions::new()
-                .append(true)
-                .create(true)
-                .open(matches.get_one::<PathBuf>("output").unwrap())?;
-
-            for result in ssim {
-                out.write_all(format!("{}", result).as_bytes())?;
-            }
-        } else {
-            for result in ssim {
-                println!("{}", result);
-            }
+        if matches.contains_id("REFERENCE") {
+            rfiles.push(matches.get_one::<String>("REFERENCE").unwrap().to_string());
         }
     }
 
-    std::process::exit(0)
+    let mut ssim = Vec::new();
+
+    if matches.get_flag("allvsall") {
+        qfiles.extend(rfiles.clone());
+        for pair in qfiles.into_iter().combinations_with_replacement(2) {
+            ssim.push(cgr::compare_genomes(&pair[0], &pair[1])?);
+        }
+    } else {
+        for (q, r) in qfiles.iter().cartesian_product(&rfiles) {
+            ssim.push(cgr::compare_genomes(q, r)?);
+        }
+    }
+
+    if let Some(output) = matches.get_one::<PathBuf>("output") {
+        let mut out = fs::OpenOptions::new()
+            .append(true)
+            .create(true)
+            .open(output)?;
+        for result in ssim {
+            writeln!(out, "{}", result)?;
+        }
+    } else {
+        for result in ssim {
+            println!("{}", result);
+        }
+    }
+
+    Ok(())
 }

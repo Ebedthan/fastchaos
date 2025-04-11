@@ -3,13 +3,65 @@
 // This file may not be copied, modified, or distributed except according
 // to those terms.
 
-use std::fs::File;
-use std::io::{self, BufRead};
+use clap::ArgMatches;
+use noodles::fasta;
+
+use std::fs::{self, File};
+use std::io::{self, BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
 
 use dssim_core::*;
 use imgref::*;
 use load_image::*;
+
+/// Reads input from a file or stdin, returning the FASTA-formatted string.
+///
+/// # Arguments
+/// * `matches` - The clap ArgMatches containing CLI arguments.
+///
+/// # Returns
+/// * `Result<String, Box<dyn std::error::Error>>` - The complete FASTA content or an error.
+pub fn read_input_fasta_or_stdin(
+    matches: &ArgMatches,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let mut input = String::new();
+    let file_arg = matches.get_one::<String>("FILE");
+
+    match file_arg.map(|s| s.as_str()) {
+        Some("-") | None => {
+            // Read from stdin
+            let stdin = io::stdin();
+            let mut stdin_lock = stdin.lock();
+            let bytes_read = stdin_lock.read_to_string(&mut input)?;
+
+            if bytes_read == 0 || input.trim().is_empty() {
+                return Err(
+                    "Error: No input provided via FILE or stdin.\nUse --help for usage.".into(),
+                );
+            }
+        }
+        Some(filepath) => {
+            // Read from file
+            let file = fs::File::open(filepath)?;
+            let mut reader = fasta::Reader::new(BufReader::new(file));
+
+            for result in reader.records() {
+                let record = result?;
+                input.push_str(&format!(
+                    ">{}\n{}\n",
+                    record.name(),
+                    String::from_utf8_lossy(record.sequence().as_ref())
+                ));
+            }
+
+            if input.trim().is_empty() {
+                return Err("Error: Provided file is empty.".into());
+            }
+        }
+    }
+
+    Ok(input)
+}
 
 // Copied https://github.com/kornelski/dssim/blob/f3e2191efed786081f780ddea08a1e6027f31680/src/lib.rs#L10
 /// Loading images

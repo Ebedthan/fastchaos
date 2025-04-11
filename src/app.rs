@@ -4,7 +4,7 @@
 // to those terms.
 
 use clap::{value_parser, Arg, ArgAction, Command};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub fn build_app() -> Command {
     Command::new("fastchaos")
@@ -17,22 +17,21 @@ pub fn build_app() -> Command {
         .subcommand(
             Command::new("encode")
                 .about("Encode a DNA sequence into integer Chaos Game Representation")
-                .override_usage("fastchaos encode [options] <INFILE>")
+                .override_usage("fastchaos encode [OPTIONS] [FILE]")
                 .version("1.0")
                 .author("Anicet Ebou <anicet.ebou@gmail.com>")
                 .arg(
-                    Arg::new("INFILE")
-                        .help("sequence file in fasta format")
-                        .index(1)
-                        .required(true)
-                        .value_parser(value_parser!(PathBuf)),
+                    Arg::new("FILE")
+                        .help("sequence in fasta format")
+                        .value_name("FILE")
+                        .index(1),
                 )
                 .arg(
-                    Arg::new("keep")
-                        .help("keep (don't delete) input file")
-                        .long("keep")
-                        .short('k')
-                        .action(ArgAction::SetTrue),
+                    Arg::new("output")
+                        .help("output file")
+                        .short('o')
+                        .value_name("FILE")
+                        .value_parser(is_existing),
                 ),
         )
         .subcommand(
@@ -42,32 +41,20 @@ pub fn build_app() -> Command {
                 .version("1.0")
                 .author("Anicet Ebou <anicet.ebou@gmail.com>")
                 .arg(
-                    Arg::new("INFILE")
+                    Arg::new("FILE")
                         .index(1)
-                        .help("sequences file in fasta format")
-                        .required(true)
-                        .value_parser(value_parser!(PathBuf)),
+                        .help("sequences file in fasta format"),
                 )
                 .arg(
                     Arg::new("output")
                         .help("decode file to FILE")
-                        .long("output")
                         .short('o')
-                        .value_name("FILE")
-                        .value_parser(value_parser!(PathBuf)),
-                )
-                .arg(
-                    Arg::new("keep")
-                        .help("keep (don't delete) input file")
-                        .long("keep")
-                        .short('k')
-                        .action(ArgAction::SetTrue),
+                        .value_name("FILE"),
                 )
                 .arg(
                     Arg::new("force")
-                        .help("force overwriting input file")
+                        .help("force overwriting output file")
                         .long("force")
-                        .short('f')
                         .action(ArgAction::SetTrue),
                 ),
         )
@@ -138,6 +125,14 @@ pub fn build_app() -> Command {
                 .help("number of threads")
                 .default_value("1"),
         )
+}
+
+fn is_existing(s: &str) -> Result<String, String> {
+    if !Path::new(s).exists() {
+        Ok(s.to_string())
+    } else {
+        Err("file should not already exists".to_string())
+    }
 }
 
 #[cfg(test)]

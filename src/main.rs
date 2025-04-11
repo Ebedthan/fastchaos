@@ -3,131 +3,168 @@
 // This file may not be copied, modified, or distributed except according
 // to those terms.
 
+use crate::cli::{Cli, Commands};
+use anyhow::{bail, Context};
+use clap::Parser;
 use itertools::Itertools;
+use noodles::fasta;
+use std::fs::{File, OpenOptions};
+use std::io::{self, BufReader, Read, Write};
 use std::path::Path;
-use std::{env, fs, io, io::Write, path::PathBuf};
-
-mod app;
 mod cgr;
+mod cli;
 mod icgr;
 mod utils;
 
 fn main() -> anyhow::Result<()> {
-    let matches = app::build_app().get_matches_from(env::args_os());
+    let cli = Cli::parse();
 
-    let num_threads = matches
-        .get_one::<String>("threads")
-        .unwrap_or(&"1".to_owned())
-        .parse::<usize>()?;
+    // Set thread pool
     rayon::ThreadPoolBuilder::new()
-        .num_threads(num_threads)
+        .num_threads(cli.threads)
         .build_global()?;
 
-    match matches.subcommand() {
-        Some(("encode", m)) => handle_encode(m),
-        Some(("decode", m)) => handle_decode(m),
-        Some(("draw", m)) => handle_draw(m),
-        Some(("compare", m)) => handle_compare(m),
-        _ => Ok(()), // No valid subcommand
-    }?;
+    match cli.command {
+        Commands::Encode(args) => {
+            let mut input = String::new();
+            let from_stdin = args.file.as_ref().map_or(true, |p| p == Path::new("-"));
+            if from_stdin {
+                // Read from stdin
+                let stdin = io::stdin();
+                let mut stdin_lock = stdin.lock();
+                let bytes_read = stdin_lock.read_to_string(&mut input)?;
 
-    std::process::exit(0)
-}
+                if bytes_read == 0 || input.trim().is_empty() {
+                    bail!("Error: No input provided via FILE or stdin.\nUse --help for usage.");
+                }
+            } else {
+                let opened_file = File::open(args.file.expect("File argument should be supplied"))?;
+                let mut reader = fasta::Reader::new(BufReader::new(opened_file));
 
-fn handle_encode(matches: &clap::ArgMatches) -> anyhow::Result<()> {
-    let input = utils::read_input_fasta_or_stdin(matches).unwrap();
+                for result in reader.records() {
+                    let record = result?;
+                    input.push_str(&format!(
+                        ">{}\n{}\n",
+                        record.name(),
+                        String::from_utf8_lossy(record.sequence().as_ref())
+                    ));
+                }
 
-    let destination: Box<dyn Write> = if let Some(output) = matches.get_one::<String>("output") {
-        Box::new(
-            fs::File::create(output).unwrap_or_else(|_| panic!("Failed to opend file: {}", output)),
-        )
-    } else {
-        Box::new(io::stdout().lock())
-    };
+                if input.trim().is_empty() {
+                    bail!("Error: Provided file is empty.");
+                }
+            }
 
-    icgr::encode(input, destination)?;
+            let destination: Box<dyn Write> = if let Some(out) = args.output {
+                Box::new(File::create(out)?)
+            } else {
+                Box::new(io::stdout().lock())
+            };
 
-    Ok(())
-}
-
-fn handle_decode(matches: &clap::ArgMatches) -> anyhow::Result<()> {
-    let input = utils::read_input_fasta_or_stdin(matches).unwrap();
-
-    let destination: Box<dyn Write> = if let Some(output) = matches.get_one::<String>("output") {
-        if Path::new(output).exists() && !matches.get_flag("force") {
-            eprintln!("Error: cannot decode to {}, file already exists", output);
-            std::process::exit(1);
+            icgr::encode(input, destination)?;
         }
-        Box::new(
-            fs::File::create(output).unwrap_or_else(|_| panic!("Failed to opend file: {}", output)),
-        )
-    } else {
-        Box::new(io::stdout().lock())
-    };
+        Commands::Decode(args) => {
+            let mut input = String::new();
+            let from_stdin = args.file.as_ref().map_or(true, |p| p == Path::new("-"));
+            if from_stdin {
+                // Read from stdin
+                let stdin = io::stdin();
+                let mut stdin_lock = stdin.lock();
+                let bytes_read = stdin_lock.read_to_string(&mut input)?;
 
-    icgr::decode(input, destination)?;
+                if bytes_read == 0 || input.trim().is_empty() {
+                    bail!("Error: No input provided via FILE or stdin.\nUse --help for usage.");
+                }
+            } else {
+                let opened_file = File::open(args.file.expect("File argument should be supplied"))?;
+                let mut reader = fasta::Reader::new(BufReader::new(opened_file));
 
-    Ok(())
-}
+                for result in reader.records() {
+                    let record = result?;
+                    input.push_str(&format!(
+                        ">{}\n{}\n",
+                        record.name(),
+                        String::from_utf8_lossy(record.sequence().as_ref())
+                    ));
+                }
 
-fn handle_draw(matches: &clap::ArgMatches) -> anyhow::Result<()> {
-    let input = matches.get_one::<PathBuf>("INFILE").unwrap();
-    let destination = matches
-        .get_one::<String>("output")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("."));
+                if input.trim().is_empty() {
+                    bail!("Error: Provided file is empty.");
+                }
+            }
 
-    let source = fs::File::open(input)?;
-    cgr::draw(source, &destination)?;
-    Ok(())
-}
+            let destination: Box<dyn Write> = if let Some(out) = args.output {
+                Box::new(File::create(out)?)
+            } else {
+                Box::new(io::stdout().lock())
+            };
 
-fn handle_compare(matches: &clap::ArgMatches) -> anyhow::Result<()> {
-    let mut qfiles = Vec::new();
-    let mut rfiles = Vec::new();
-
-    if matches.contains_id("QUERY") && matches.contains_id("REFERENCE") {
-        qfiles.push(matches.get_one::<String>("QUERY").unwrap().to_string());
-        rfiles.push(matches.get_one::<String>("REFERENCE").unwrap().to_string());
-    } else {
-        if let Some(q_path) = matches.get_one::<PathBuf>("queries") {
-            qfiles = utils::read_lines(q_path)?.map_while(Result::ok).collect();
+            icgr::decode(input, destination)?;
         }
-        if let Some(r_path) = matches.get_one::<PathBuf>("refs") {
-            rfiles = utils::read_lines(r_path)?.map_while(Result::ok).collect();
+        Commands::Draw(args) => {
+            let source = File::open(args.file)?;
+            let out = args.output.unwrap_or(
+                std::env::current_dir().expect("Currrent working directory should be valid"),
+            );
+            cgr::draw(source, &out)?;
         }
-        if matches.contains_id("QUERY") {
-            qfiles.push(matches.get_one::<String>("QUERY").unwrap().to_string());
-        }
-        if matches.contains_id("REFERENCE") {
-            rfiles.push(matches.get_one::<String>("REFERENCE").unwrap().to_string());
-        }
-    }
+        Commands::Compare(args) => {
+            let mut qfiles = Vec::new();
+            let mut rfiles = Vec::new();
 
-    let mut ssim = Vec::new();
+            match (&args.query, &args.reference) {
+                (Some(q), Some(r)) => {
+                    qfiles.push(q.to_string_lossy().into_owned());
+                    rfiles.push(r.to_string_lossy().into_owned());
+                }
+                (Some(q), None) => {
+                    qfiles.push(q.to_string_lossy().into_owned());
 
-    if matches.get_flag("allvsall") {
-        qfiles.extend(rfiles.clone());
-        for pair in qfiles.into_iter().combinations_with_replacement(2) {
-            ssim.push(cgr::compare_genomes(&pair[0], &pair[1])?);
-        }
-    } else {
-        for (q, r) in qfiles.iter().cartesian_product(&rfiles) {
-            ssim.push(cgr::compare_genomes(q, r)?);
-        }
-    }
+                    let ref_file = args.refs.as_ref().context("Missing --refs file")?;
+                    rfiles = utils::read_lines(ref_file)?.map_while(Result::ok).collect();
+                }
+                (None, Some(r)) => {
+                    let query_file = args.queries.as_ref().context("Missing --queries file")?;
+                    qfiles = utils::read_lines(query_file)?
+                        .map_while(Result::ok)
+                        .collect();
 
-    if let Some(output) = matches.get_one::<PathBuf>("output") {
-        let mut out = fs::OpenOptions::new()
-            .append(true)
-            .create(true)
-            .open(output)?;
-        for result in ssim {
-            writeln!(out, "{}", result)?;
-        }
-    } else {
-        for result in ssim {
-            println!("{}", result);
+                    rfiles.push(r.to_string_lossy().into_owned());
+                }
+                (None, None) => {
+                    let query_file = args.queries.as_ref().context("Missing --queries file")?;
+                    let ref_file = args.refs.as_ref().context("Missing --refs file")?;
+
+                    qfiles = utils::read_lines(query_file)?
+                        .map_while(Result::ok)
+                        .collect();
+                    rfiles = utils::read_lines(ref_file)?.map_while(Result::ok).collect();
+                }
+            }
+
+            let mut ssim = Vec::new();
+
+            if args.allvsall {
+                qfiles.extend(rfiles.clone());
+                for pair in qfiles.into_iter().combinations_with_replacement(2) {
+                    ssim.push(cgr::compare_genomes(&pair[0], &pair[1])?);
+                }
+            } else {
+                for (q, r) in qfiles.iter().cartesian_product(&rfiles) {
+                    ssim.push(cgr::compare_genomes(q, r)?);
+                }
+            }
+
+            if let Some(output) = args.output {
+                let mut out = OpenOptions::new().append(true).create(true).open(output)?;
+                for result in ssim {
+                    writeln!(out, "{}", result)?;
+                }
+            } else {
+                for result in ssim {
+                    println!("{}", result);
+                }
+            }
         }
     }
 

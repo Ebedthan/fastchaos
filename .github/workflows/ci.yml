@@ -13,6 +13,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libfontconfig1-dev
+
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
@@ -48,6 +51,8 @@ jobs:
             rust: stable
     steps:
       - uses: actions/checkout@v4
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libfontconfig1-dev
 
       - uses: actions-rs/toolchain@v1
         with:
@@ -67,6 +72,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libfontconfig1-dev
 
       - uses: actions-rs/toolchain@v1
         with:
@@ -96,6 +103,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libfontconfig1-dev
+
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
@@ -123,6 +133,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libfontconfig1-dev
+
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
@@ -138,6 +151,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libfontconfig1-dev
 
       - uses: actions-rs/toolchain@v1
         with:

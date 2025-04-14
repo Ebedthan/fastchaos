@@ -28,7 +28,7 @@ pub struct Icgr {
     /// Second integer of the ICGR
     y: String,
 
-    /// Sequence length
+    /// Block length
     n: usize,
 }
 

@@ -67,34 +67,30 @@ jobs:
           args: --no-fail-fast
 
   coverage:
-    name: 📊 Code Coverage
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y pkg-config libfontconfig1-dev
+      - uses: actions/checkout@v2
 
-      - uses: actions-rs/toolchain@v1
+      - name: Install Rust nightly and llvm-tools
+        uses: actions-rs/toolchain@v1
         with:
           toolchain: nightly
           override: true
+          components: llvm-tools-preview
 
-      - uses: Swatinem/rust-cache@v2
-
-      - name: Install cargo-tarpaulin
-        uses: actions-rs/install@v0.1
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@v2
         with:
-          crate: cargo-tarpaulin
-          version: latest
-          use-tool-cache: true
+          tool: cargo-llvm-cov
 
-      - name: Run cargo-tarpaulin
-        run: cargo tarpaulin --all-features --timeout 600 --fail-under 70 --out Xml -- --test-threads 1
+      - name: Run cargo-llvm-cov
+        run: |
+          cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
         with:
-          fail_ci_if_error: true
+          files: ./lcov.info
 
   lints:
     name: 🧹 Lints and Format

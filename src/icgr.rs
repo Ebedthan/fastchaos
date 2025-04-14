@@ -125,12 +125,12 @@ impl IChaos {
 }
 
 impl Icgr {
-    fn from_sequence(sequence: &[u8]) -> Vec<Icgr> {
+    fn from_sequence(sequence: &[u8], block_length: usize) -> Vec<Icgr> {
         let seq = String::from_utf8_lossy(sequence);
         let seq_length = seq.len();
 
-        let chunks: Vec<&str> = if seq_length > 100 {
-            str_chunks(&seq, 100).collect()
+        let chunks: Vec<&str> = if seq_length > block_length {
+            str_chunks(&seq, block_length).collect()
         } else {
             vec![&seq]
         };
@@ -184,11 +184,11 @@ impl Icgr {
 }
 
 /// Converts a FASTA record into IChaos format.
-fn from_record(record: fasta::Record) -> IChaos {
+fn from_record(record: fasta::Record, block_length: usize) -> IChaos {
     IChaos {
         id: record.name().to_string(),
         desc: record.description().map(str::to_string),
-        icgrs: Icgr::from_sequence(record.sequence().as_ref()),
+        icgrs: Icgr::from_sequence(record.sequence().as_ref(), block_length),
     }
 }
 
@@ -256,11 +256,11 @@ fn string_to_ichaos(s: &str) -> Result<IChaos, Box<dyn std::error::Error>> {
     })
 }
 
-pub fn encode<W: io::Write>(source: String, mut destination: W) -> Result<()> {
+pub fn encode<W: io::Write>(source: String, mut destination: W, block_length: usize) -> Result<()> {
     let mut reader = fasta::Reader::new(BufReader::new(source.as_bytes()));
     for result in reader.records() {
         let record = result?;
-        let ichaos = from_record(record);
+        let ichaos = from_record(record, block_length);
         let text = ichaos.to_text();
 
         // Also write to destination file if provided
@@ -322,7 +322,7 @@ mod tests {
         );
 
         assert_eq!(
-            from_record(seq),
+            from_record(seq, 10),
             IChaos {
                 id: "sq0".to_string(),
                 desc: None,
@@ -370,7 +370,7 @@ mod tests {
             }],
         };
 
-        assert_eq!(Icgr::from_sequence(b"ATTGCCGTAA"), ichaos.icgrs);
+        assert_eq!(Icgr::from_sequence(b"ATTGCCGTAA", 10), ichaos.icgrs);
     }
     /*
     #[test]

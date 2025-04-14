@@ -27,7 +27,7 @@ fn main() -> anyhow::Result<()> {
     match cli.command {
         Commands::Encode(args) => {
             let mut input = String::new();
-            let from_stdin = args.file.as_ref().map_or(true, |p| p == Path::new("-"));
+            let from_stdin = args.file.as_ref().is_none_or(|p| p == Path::new("-"));
             if from_stdin {
                 // Read from stdin
                 let stdin = io::stdin();
@@ -61,11 +61,13 @@ fn main() -> anyhow::Result<()> {
                 Box::new(io::stdout().lock())
             };
 
-            icgr::encode(input, destination)?;
+            let block_length: usize = args.block_width;
+
+            icgr::encode(input, destination, block_length)?;
         }
         Commands::Decode(args) => {
             let mut input = String::new();
-            let from_stdin = args.file.as_ref().map_or(true, |p| p == Path::new("-"));
+            let from_stdin = args.file.as_ref().is_none_or(|p| p == Path::new("-"));
             if from_stdin {
                 // Read from stdin
                 let stdin = io::stdin();

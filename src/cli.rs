@@ -49,6 +49,10 @@ pub struct EncodeArgs {
     /// Output file
     #[arg(short, value_parser = must_not_exist)]
     pub output: Option<PathBuf>,
+
+    /// Sequence block length (either 50 or 100)
+    #[arg(short = 'w', default_value_t = 100, value_name = "INT", value_parser = validate_block_width)]
+    pub block_width: usize,
 }
 
 #[derive(Args, Debug)]
@@ -102,5 +106,13 @@ fn must_not_exist(s: &str) -> Result<PathBuf, String> {
         Err(format!("{} should not already exist.", path.display()))
     } else {
         Ok(path)
+    }
+}
+
+fn validate_block_width(val: &str) -> Result<usize, String> {
+    match val.parse::<usize>() {
+        Ok(50) | Ok(100) => Ok(val.parse().unwrap()),
+        Ok(_) => Err(String::from("block_width must be 50 or 100")),
+        Err(_) => Err(String::from("block_width must be a number")),
     }
 }

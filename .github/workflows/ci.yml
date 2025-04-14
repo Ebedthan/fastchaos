@@ -30,7 +30,6 @@ jobs:
           command: check
 
   test:
-    name: 🧪 Tests
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -51,7 +50,9 @@ jobs:
             rust: stable
     steps:
       - uses: actions/checkout@v4
-      - name: Install system dependencies
+
+      - name: Install system dependencies (Linux only)
+        if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y pkg-config libfontconfig1-dev
 
       - uses: actions-rs/toolchain@v1
@@ -59,9 +60,7 @@ jobs:
           toolchain: ${{ matrix.rust }}
           override: true
 
-      - uses: Swatinem/rust-cache@v2
-
-      - name: Run cargo test
+      - name: Run tests
         uses: actions-rs/cargo@v1
         with:
           command: test

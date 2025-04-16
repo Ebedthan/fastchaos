@@ -10,6 +10,23 @@ use std::path::{Path, PathBuf};
 use dssim_core::*;
 use imgref::*;
 use load_image::*;
+use noodles::fasta::Record;
+
+use crate::icgr::{Icgr, TriIntegers};
+
+pub trait FastaRecord {
+    fn to_icgr(&self, block_length: usize) -> Icgr;
+}
+
+impl FastaRecord for Record {
+    fn to_icgr(&self, block_length: usize) -> Icgr {
+        Icgr {
+            id: self.name().to_string(),
+            desc: self.description().map(str::to_string),
+            tri_integers: TriIntegers::from_sequence(self.sequence().as_ref(), block_length),
+        }
+    }
+}
 
 // Copied https://github.com/kornelski/dssim/blob/f3e2191efed786081f780ddea08a1e6027f31680/src/lib.rs#L10
 /// Load PNG or JPEG image from the given path. Applies color profiles and converts to sRGB.

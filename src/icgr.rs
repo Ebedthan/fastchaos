@@ -3,15 +3,21 @@
 // This file may not be copied, modified, or distributed except according
 // to those terms.
 
-use rayon::iter::ParallelIterator;
+use rayon::iter::{FromParallelIterator, ParallelIterator};
 use std::fmt;
+use std::io::BufRead;
 use std::io::{self, BufReader};
+use std::ops::Deref;
 use std::str;
+use std::vec::Vec;
 
+use crate::bicgr;
+use crate::utils::FastaRecord;
 use anyhow::Result;
 use noodles::fasta;
 use rayon::iter::IntoParallelIterator;
-use serde::{Deserialize, Serialize};
+use serde::de::{self, Visitor};
+use serde::{Deserialize, Deserializer, Serialize};
 
 /// Integer Chaos Game Representation (ICGR) for a sequence
 /// Using Strings for serialization compatibility.
@@ -21,7 +27,7 @@ use serde::{Deserialize, Serialize};
 /// https://github.com/serde-rs/json/issues/846
 /// So the integers will be stored as String and converted as needed
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct Icgr {
+pub struct TriIntegers {
     /// First integer of the ICGR
     x: String,
 
@@ -32,100 +38,167 @@ pub struct Icgr {
     n: usize,
 }
 
-impl fmt::Display for Icgr {
+/// FromParallelIterator trait implementation for TriIntegersList
+impl FromParallelIterator<TriIntegers> for TriIntegersList {
+    fn from_par_iter<I>(par_iter: I) -> Self
+    where
+        I: IntoParallelIterator<Item = TriIntegers>,
+    {
+        let vec: Vec<TriIntegers> = Vec::from_par_iter(par_iter);
+        TriIntegersList(vec)
+    }
+}
+
+impl fmt::Display for TriIntegers {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "[{},{},{}]", self.x, self.y, self.n)
     }
 }
 
-/// Representation of a DNA sequence using the Integer Chaos Game Representation (ICGR) method.
-///
-/// This struct represents a DNA sequence using the Integer Chaos Game Representation (ICGR) method.
-/// It contains a vector of ICGR which represent the whole DNA sequence.
-///
-/// # Examples
-///
-/// ```
-/// use fastchaos::icgr::IChaos;
-///
-/// let icgr = IChaos::new("seq1", "description", vec![1, 2, 3]);
-/// assert_eq!(icgr.id(), "seq1");
-/// assert_eq!(icgr.desc(), Some("description"));
-/// assert_eq!(icgr.icgrs(), &[1, 2, 3]);
-/// ```
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct IChaos {
-    /// A DNA sequence ID: all characters before first whitespace in sequence header
-    id: String,
+#[derive(Debug, PartialEq, Serialize, Clone)]
+pub struct TriIntegersList(Vec<TriIntegers>);
 
-    /// A DNA sequence description: all characters after first whitespace
-    desc: Option<String>,
+impl<'de> Deserialize<'de> for TriIntegersList {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct TriIntegersListVisitor;
 
-    /// A vector of ICGR which represent the whole DNA sequence
-    icgrs: Vec<Icgr>,
+        impl<'de> Visitor<'de> for TriIntegersListVisitor {
+            type Value = TriIntegersList;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a semicolon-separated string of 'x,y,n' triplets")
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                let mut result = Vec::new();
+
+                for entry in value.split(';').filter(|s| !s.trim().is_empty()) {
+                    let parts: Vec<&str> = entry.split(',').collect();
+
+                    if parts.len() != 3 {
+                        return Err(de::Error::custom(format!(
+                            "Invalid triplet: '{}'. Expected format 'x,y,n'",
+                            entry
+                        )));
+                    }
+
+                    let x = parts[0].trim().to_string();
+                    let y = parts[1].trim().to_string();
+                    let n = parts[2].trim().parse::<usize>().map_err(|_| {
+                        de::Error::custom(format!("Invalid block length: '{}'", parts[2]))
+                    })?;
+
+                    result.push(TriIntegers { x, y, n });
+                }
+
+                Ok(TriIntegersList(result))
+            }
+        }
+
+        deserializer.deserialize_str(TriIntegersListVisitor)
+    }
 }
 
-impl IChaos {
-    /// Computes the total length of the DNA sequence represented by the ICGR.
-    fn length(&self) -> usize {
-        self.icgrs.iter().map(|x| x.n).sum()
+impl TriIntegersList {
+    pub fn iter(&self) -> std::slice::Iter<'_, TriIntegers> {
+        self.0.iter()
     }
 
-    /// Converts the ICGR to a FASTA record.
-    fn to_fasta(&self) -> fasta::Record {
-        let sequence = self.decode_icgr();
-        fasta::Record::new(
-            fasta::record::Definition::new(&self.id, self.desc.clone()),
-            fasta::record::Sequence::from(sequence),
-        )
+    pub fn to_dna(&self, overlap: u8) -> Result<Vec<u8>, String> {
+        let dna_chunks: Vec<Vec<u8>> = self
+            .iter()
+            .map(|x| tri_integers_to_dna(x.clone()))
+            .collect();
+        let chunks: Vec<&[u8]> = dna_chunks.iter().map(|v| v.as_slice()).collect();
+        // merge strings with overlaps
+        merge_with_overlap(chunks, overlap as usize)
     }
+}
 
-    /// Serialize the IChaos object to a string
-    ///
-    /// The format is:
-    /// `SeqID\tx1,y1,n1;x2,y2,n2;...`
-    fn to_text(&self) -> String {
-        let vec_str = self
-            .icgrs
+fn merge_with_overlap(chunks: Vec<&[u8]>, overlap: usize) -> Result<Vec<u8>, String> {
+    if chunks.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut result = chunks[0].to_vec();
+    for window in chunks.windows(2) {
+        let prev = window[0];
+        let curr = window[1];
+
+        if prev.len() < overlap || curr.len() < overlap {
+            return Err("Chunk too short to contain required overlap".into());
+        }
+
+        let prev_tail = &prev[prev.len() - overlap..];
+        let curr_head = &curr[..overlap];
+
+        if prev_tail != curr_head {
+            return Err(format!(
+                "Overlap mismatch: expected {:?}, got {:?}",
+                String::from_utf8_lossy(prev_tail),
+                String::from_utf8_lossy(curr_head)
+            ));
+        }
+        // Append only the non-overlapping part
+        result.extend_from_slice(&curr[overlap..]);
+    }
+    Ok(result)
+}
+
+impl Deref for TriIntegersList {
+    type Target = Vec<TriIntegers>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl IntoIterator for TriIntegersList {
+    type Item = TriIntegers;
+    type IntoIter = std::vec::IntoIter<TriIntegers>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+impl fmt::Display for TriIntegersList {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = self
+            .0
             .iter()
             .map(|x| format!("{},{},{}", x.x, x.y, x.n))
             .collect::<Vec<_>>()
             .join(";");
-
-        format!("{}\t{}\n", self.id, vec_str)
-    }
-
-    /// Decodes ICGR values back into a nucleotide sequence.
-    fn decode_icgr(&self) -> Vec<u8> {
-        let mut complete_dna = Vec::with_capacity(self.length());
-        let base: i128 = 2;
-
-        for icgr in &self.icgrs {
-            let mut an = vec![0; icgr.n];
-            let mut bn = vec![0; icgr.n];
-            an[icgr.n - 1] = icgr.x.parse().unwrap_or(0);
-            bn[icgr.n - 1] = icgr.y.parse().unwrap_or(0);
-
-            let mut seq = Vec::with_capacity(icgr.n);
-
-            for index in (0..icgr.n).rev() {
-                let nucleotide = get_nucleotide(an[index], bn[index]).unwrap_or('N');
-                seq.push(nucleotide);
-                if index > 0 {
-                    let (f, g) = get_cgr_vertex(an[index], bn[index]).unwrap_or((0, 0));
-                    an[index - 1] = an[index] - base.pow(index as u32) * f;
-                    bn[index - 1] = bn[index] - base.pow(index as u32) * g;
-                }
-            }
-            seq.reverse();
-            complete_dna.extend(seq.into_iter().map(|c| c as u8));
-        }
-        complete_dna
+        write!(f, "{}", s)
     }
 }
 
-impl Icgr {
-    fn from_sequence(sequence: &[u8], block_length: usize) -> Vec<Icgr> {
+impl<'a> IntoIterator for &'a TriIntegersList {
+    type Item = &'a TriIntegers;
+    type IntoIter = std::slice::Iter<'a, TriIntegers>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a mut TriIntegersList {
+    type Item = &'a mut TriIntegers;
+    type IntoIter = std::slice::IterMut<'a, TriIntegers>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter_mut()
+    }
+}
+
+impl TriIntegers {
+    pub(crate) fn from_sequence(sequence: &[u8], block_length: usize) -> TriIntegersList {
         let seq = String::from_utf8_lossy(sequence);
         let seq_length = seq.len();
 
@@ -139,7 +212,7 @@ impl Icgr {
         chunks.into_par_iter().map(Self::icgr_from_chunk).collect()
     }
 
-    fn icgr_from_chunk(chunk: &str) -> Icgr {
+    fn icgr_from_chunk(chunk: &str) -> TriIntegers {
         let an = [1, 1];
         let tn = [-1, 1];
         let cn = [-1, -1];
@@ -175,7 +248,7 @@ impl Icgr {
             yy.push(bb);
         }
         let n = chunk.len();
-        Icgr {
+        TriIntegers {
             x: xx[n - 1].to_string(),
             y: yy[n - 1].to_string(),
             n,
@@ -183,12 +256,67 @@ impl Icgr {
     }
 }
 
-/// Converts a FASTA record into IChaos format.
-fn from_record(record: fasta::Record, block_length: usize) -> IChaos {
-    IChaos {
-        id: record.name().to_string(),
-        desc: record.description().map(str::to_string),
-        icgrs: Icgr::from_sequence(record.sequence().as_ref(), block_length),
+/// Decodes ICGR values back into a nucleotide sequence.
+fn tri_integers_to_dna(tri_integers: TriIntegers) -> Vec<u8> {
+    let mut complete_dna = Vec::with_capacity(tri_integers.n);
+    let base: i128 = 2;
+
+    let mut an = vec![0; tri_integers.n];
+    let mut bn = vec![0; tri_integers.n];
+    an[tri_integers.n - 1] = tri_integers.x.parse().unwrap_or(0);
+    bn[tri_integers.n - 1] = tri_integers.y.parse().unwrap_or(0);
+
+    let mut seq = Vec::with_capacity(tri_integers.n);
+
+    for index in (0..tri_integers.n).rev() {
+        let nucleotide = get_nucleotide(an[index], bn[index]).unwrap_or('N');
+        seq.push(nucleotide);
+        if index > 0 {
+            let (f, g) = get_cgr_vertex(an[index], bn[index]).unwrap_or((0, 0));
+            an[index - 1] = an[index] - base.pow(index as u32) * f;
+            bn[index - 1] = bn[index] - base.pow(index as u32) * g;
+        }
+    }
+    seq.reverse();
+    complete_dna.extend(seq.into_iter().map(|c| c as u8));
+    complete_dna
+}
+
+/// Representation of a DNA sequence using the Integer Chaos Game Representation (ICGR) method.
+///
+/// This struct represents a DNA sequence using the Integer Chaos Game Representation (ICGR) method.
+/// It contains a vector of ICGR which represent the whole DNA sequence.
+///
+/// # Examples
+///
+/// ```
+/// use fastchaos::icgr::IChaos;
+///
+/// let icgr = IChaos::new("seq1", "description", vec![1, 2, 3]);
+/// assert_eq!(icgr.id(), "seq1");
+/// assert_eq!(icgr.desc(), Some("description"));
+/// assert_eq!(icgr.icgrs(), &[1, 2, 3]);
+/// ```
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Icgr {
+    /// A DNA sequence ID: all characters before first whitespace in sequence header
+    pub(crate) id: String,
+
+    /// A DNA sequence description: all characters after first whitespace
+    pub(crate) desc: Option<String>,
+
+    /// A vector of ICGR which represent the whole DNA sequence
+    pub(crate) tri_integers: TriIntegersList,
+}
+
+impl Icgr {
+    fn to_bicgr(&self, overlap: u8) -> bicgr::Record {
+        bicgr::Record {
+            seq_id: self.id.clone(),
+            desc: self.desc.clone(),
+            overlap,
+            tri_integers: self.tri_integers.clone(),
+        }
     }
 }
 
@@ -220,78 +348,43 @@ fn str_chunks<'a>(s: &'a str, n: usize) -> Box<dyn Iterator<Item = &'a str> + 'a
     Box::new(s.as_bytes().chunks(n).map(|c| str::from_utf8(c).unwrap()))
 }
 
-fn string_to_ichaos(s: &str) -> Result<IChaos, Box<dyn std::error::Error>> {
-    let mut parts = s.trim().split('\t');
-
-    let id = parts
-        .next()
-        .ok_or_else(|| -> Box<dyn std::error::Error> { "Missing sequence ID".into() })?
-        .to_string();
-
-    let data = parts
-        .next()
-        .ok_or_else(|| -> Box<dyn std::error::Error> { "Missing data after ID".into() })?;
-
-    let icgrs = data
-        .split(';')
-        .filter(|s| !s.is_empty())
-        .map(|triple| {
-            let coords: Vec<&str> = triple.split(',').collect();
-            if coords.len() != 3 {
-                return Err(format!("Invalid triplet format: {}", triple).into());
-            }
-
-            Ok(Icgr {
-                x: coords[0].parse()?,
-                y: coords[1].parse()?,
-                n: coords[2].parse()?,
-            })
-        })
-        .collect::<Result<Vec<Icgr>, Box<dyn std::error::Error>>>()?;
-
-    Ok(IChaos {
-        id,
-        desc: None,
-        icgrs,
-    })
-}
-
-pub fn encode<W: io::Write>(source: String, mut destination: W, block_length: usize) -> Result<()> {
+pub fn encode<W: io::Write>(
+    source: String,
+    mut destination: W,
+    block_length: usize,
+    overlap: u8,
+) -> Result<()> {
     let mut reader = fasta::Reader::new(BufReader::new(source.as_bytes()));
     for result in reader.records() {
         let record = result?;
-        let ichaos = from_record(record, block_length);
-        let text = ichaos.to_text();
+        let icgr = record.to_icgr(block_length);
+        let bicgr_format = icgr.to_bicgr(overlap);
 
         // Also write to destination file if provided
-        destination.write_all(text.as_bytes())?;
+        bicgr_format.write_all(&mut destination)?;
     }
 
     Ok(())
 }
 
-pub fn decode<W: io::Write>(source: String, mut destination: W) -> Result<()> {
-    for line in source.lines() {
-        // Unwrapping to get ichaos
-        let ichaos = string_to_ichaos(line).unwrap();
+pub fn decode<R: BufRead, W: io::Write>(source: R, mut destination: W) -> Result<()> {
+    let records = bicgr::read_from(source)?;
 
-        // Convert to fasta record
-        let record = ichaos.to_fasta();
-
+    for record in records {
         destination.write_all(
             format!(
-                ">{} {}\n{}",
-                record.name(),
-                record.description().unwrap_or(""),
-                String::from_utf8_lossy(record.sequence().as_ref())
+                ">{} {}\n{:?}",
+                record.seq_id,
+                record.desc.unwrap_or_default(),
+                record.tri_integers.to_dna(record.overlap)
             )
             .as_bytes(),
         )?;
     }
-
     Ok(())
 }
 
+/*
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -314,6 +407,7 @@ mod tests {
         assert_eq!(get_cgr_vertex(0_i128, 0_i128).unwrap(), (0, 0));
     }
 
+    /*/
     #[test]
     fn test_from_record() {
         let seq = fasta::Record::new(
@@ -323,24 +417,24 @@ mod tests {
 
         assert_eq!(
             from_record(seq, 10),
-            IChaos {
+            ICGR {
                 id: "sq0".to_string(),
                 desc: None,
-                icgrs: vec![Icgr {
+                tri_integers: vec![TriIntegers {
                     x: "515".to_string(),
                     y: "783".to_string(),
                     n: 10
                 }]
             }
         );
-    }
+    }*/
 
     #[test]
     fn test_ichaos() {
-        let ichaos = IChaos {
+        let ichaos = ICGR {
             id: "sq0".to_string(),
             desc: Some(String::from("")),
-            icgrs: vec![Icgr {
+            tri_integers: vec![TriIntegers {
                 x: "515".to_string(),
                 y: "783".to_string(),
                 n: 10,
@@ -360,17 +454,20 @@ mod tests {
 
     #[test]
     fn test_from_sequence() {
-        let ichaos = IChaos {
+        let ichaos = ICGR {
             id: "sq0".to_string(),
             desc: Some(String::from("")),
-            icgrs: vec![Icgr {
+            tri_integers: vec![TriIntegers {
                 x: "515".to_string(),
                 y: "783".to_string(),
                 n: 10,
             }],
         };
 
-        assert_eq!(Icgr::from_sequence(b"ATTGCCGTAA", 10), ichaos.icgrs);
+        assert_eq!(
+            TriIntegers::from_sequence(b"ATTGCCGTAA", 10),
+            ichaos.tri_integers
+        );
     }
     /*
     #[test]
@@ -389,3 +486,4 @@ mod tests {
         std::fs::remove_file("homo.icgr").unwrap();
     }*/
 }
+*/

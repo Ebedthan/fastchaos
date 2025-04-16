@@ -9,8 +9,9 @@ use clap::Parser;
 use itertools::Itertools;
 use noodles::fasta;
 use std::fs::{File, OpenOptions};
-use std::io::{self, BufReader, Read, Write};
+use std::io::{self, BufRead, BufReader, Read, Write};
 use std::path::Path;
+mod bicgr;
 mod cgr;
 mod cli;
 mod icgr;
@@ -62,38 +63,22 @@ fn main() -> anyhow::Result<()> {
             };
 
             let block_length: usize = args.block_width;
+            let overlap: u8 = args.overlap;
 
-            icgr::encode(input, destination, block_length)?;
+            icgr::encode(input, destination, block_length, overlap)?;
         }
         Commands::Decode(args) => {
-            let mut input = String::new();
             let from_stdin = args.file.as_ref().is_none_or(|p| p == Path::new("-"));
-            if from_stdin {
+            let input = if from_stdin {
                 // Read from stdin
                 let stdin = io::stdin();
-                let mut stdin_lock = stdin.lock();
-                let bytes_read = stdin_lock.read_to_string(&mut input)?;
-
-                if bytes_read == 0 || input.trim().is_empty() {
-                    bail!("Error: No input provided via FILE or stdin.\nUse --help for usage.");
-                }
+                let stdin_lock = stdin.lock();
+                Box::new(stdin_lock) as Box<dyn BufRead>
             } else {
-                let opened_file = File::open(args.file.expect("File argument should be supplied"))?;
-                let mut reader = fasta::Reader::new(BufReader::new(opened_file));
-
-                for result in reader.records() {
-                    let record = result?;
-                    input.push_str(&format!(
-                        ">{}\n{}\n",
-                        record.name(),
-                        String::from_utf8_lossy(record.sequence().as_ref())
-                    ));
-                }
-
-                if input.trim().is_empty() {
-                    bail!("Error: Provided file is empty.");
-                }
-            }
+                let path = args.file.expect("File argument should be supplied");
+                let file = File::open(path)?;
+                Box::new(BufReader::new(file)) as Box<dyn BufRead>
+            };
 
             let destination: Box<dyn Write> = if let Some(out) = args.output {
                 Box::new(File::create(out)?)

@@ -1,10 +1,9 @@
 # fastchaos
-<a href="https://github.com/Ebedthan/fastchaos/actions?query=workflow%3A%22Continuous+Integration%22">
-    <img src="https://img.shields.io/github/actions/workflow/status/Ebedthan/fastchaos/ci.yml?style=flat&logo=GitHub%20Actions&branch=main">
-</a>
-<a href="https://codecov.io/gh/Ebedthan/fastchaos">
-    <img src="https://codecov.io/gh/Ebedthan/fastchaos/branch/main/graph/badge.svg?token=K7VN5TH6EZ"/>
-</a>
+
+*DNA Sequence encoding, decoding and analysis using (Integer) Chaos Game Representation*
+
+[![Continuous Integration](https://github.com/Ebedthan/fastchaos/actions/workflows/ci.yml/badge.svg)](https://github.com/Ebedthan/fastchaos/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/Ebedthan/fastchaos/branch/main/graph/badge.svg?token=K7VN5TH6EZ)](https://codecov.io/gh/Ebedthan/fastchaos)
 <a href="https://github.com/Ebedthan/fastchaos/blob/master/LICENSE">
     <img src="https://img.shields.io/badge/license-MIT-blue?style=flat">
 </a>

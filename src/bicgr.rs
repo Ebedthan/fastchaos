@@ -18,7 +18,6 @@ use std::io::{self, BufRead, Write};
 /// <overlap>       ::= [0-9]+
 /// <tri_integers>   ::= <tri_integer> (";" <tri_integer>)*
 /// <tri_integer>    ::= [0-9]+ "," [0-9]+
-
 /// This struct define the block-based integer chaos game representation file format.
 /// The BICGR is a tsv-like file format.
 #[derive(Debug, Deserialize)]

@@ -65,7 +65,7 @@ impl<'de> Deserialize<'de> for TriIntegersList {
     {
         struct TriIntegersListVisitor;
 
-        impl<'de> Visitor<'de> for TriIntegersListVisitor {
+        impl Visitor<'_> for TriIntegersListVisitor {
             type Value = TriIntegersList;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
@@ -110,14 +110,16 @@ impl TriIntegersList {
         self.0.iter()
     }
 
-    pub fn to_dna(&self, overlap: u8) -> Result<Vec<u8>, String> {
+    pub fn to_dna(&self, overlap: u8) -> Result<String, String> {
         let dna_chunks: Vec<Vec<u8>> = self
             .iter()
             .map(|x| tri_integers_to_dna(x.clone()))
             .collect();
         let chunks: Vec<&[u8]> = dna_chunks.iter().map(|v| v.as_slice()).collect();
         // merge strings with overlaps
-        merge_with_overlap(chunks, overlap as usize)
+        let merged: Vec<u8> = merge_with_overlap(chunks, overlap as usize)?;
+
+        String::from_utf8(merged).map_err(|e| format!("Invalid UTF-8 sequence: {}", e))
     }
 }
 
@@ -126,6 +128,7 @@ fn merge_with_overlap(chunks: Vec<&[u8]>, overlap: usize) -> Result<Vec<u8>, Str
         return Ok(Vec::new());
     }
     let mut result = chunks[0].to_vec();
+
     for window in chunks.windows(2) {
         let prev = window[0];
         let curr = window[1];
@@ -144,9 +147,10 @@ fn merge_with_overlap(chunks: Vec<&[u8]>, overlap: usize) -> Result<Vec<u8>, Str
                 String::from_utf8_lossy(curr_head)
             ));
         }
-        // Append only the non-overlapping part
+        // Push only the non-overlapping portion of curr
         result.extend_from_slice(&curr[overlap..]);
     }
+
     Ok(result)
 }
 
@@ -198,12 +202,16 @@ impl<'a> IntoIterator for &'a mut TriIntegersList {
 }
 
 impl TriIntegers {
-    pub(crate) fn from_sequence(sequence: &[u8], block_length: usize) -> TriIntegersList {
+    pub(crate) fn from_sequence(
+        sequence: &[u8],
+        block_length: usize,
+        overlap: u8,
+    ) -> TriIntegersList {
         let seq = String::from_utf8_lossy(sequence);
         let seq_length = seq.len();
 
         let chunks: Vec<&str> = if seq_length > block_length {
-            str_chunks(&seq, block_length).collect()
+            str_chunks_overlap(&seq, block_length, overlap as usize).collect()
         } else {
             vec![&seq]
         };
@@ -239,7 +247,7 @@ impl TriIntegers {
                         'A' => (prev_x + power, prev_y + power),
                         'T' => (prev_x - power, prev_y + power),
                         'C' => (prev_x - power, prev_y - power),
-                        'G' => (prev_x - power, prev_y - power),
+                        'G' => (prev_x + power, prev_y - power),
                         _ => (prev_x, prev_y),
                     }
                 }
@@ -344,8 +352,24 @@ fn get_cgr_vertex(x: i128, y: i128) -> Result<(i128, i128)> {
 
 /// Function generating an iterator of chunks of sequence
 #[inline]
-fn str_chunks<'a>(s: &'a str, n: usize) -> Box<dyn Iterator<Item = &'a str> + 'a> {
-    Box::new(s.as_bytes().chunks(n).map(|c| str::from_utf8(c).unwrap()))
+fn str_chunks_overlap<'a>(
+    s: &'a str,
+    chunk_size: usize,
+    overlap: usize,
+) -> Box<dyn Iterator<Item = &'a str> + 'a> {
+    assert!(
+        chunk_size > overlap,
+        "chunk_size must be greater than overlap"
+    );
+    Box::new(
+        (0..s.len())
+            .step_by(chunk_size - overlap)
+            .take_while(move |&start| start < s.len())
+            .map(move |start| {
+                let end = usize::min(start + chunk_size, s.len());
+                &s[start..end]
+            }),
+    )
 }
 
 pub fn encode<W: io::Write>(
@@ -357,7 +381,7 @@ pub fn encode<W: io::Write>(
     let mut reader = fasta::Reader::new(BufReader::new(source.as_bytes()));
     for result in reader.records() {
         let record = result?;
-        let icgr = record.to_icgr(block_length);
+        let icgr = record.to_icgr(block_length, overlap);
         let bicgr_format = icgr.to_bicgr(overlap);
 
         // Also write to destination file if provided
@@ -367,20 +391,25 @@ pub fn encode<W: io::Write>(
     Ok(())
 }
 
-pub fn decode<R: BufRead, W: io::Write>(source: R, mut destination: W) -> Result<()> {
-    let records = bicgr::read_from(source)?;
+pub fn decode<R: BufRead, W: io::Write>(source: R, mut destination: W) -> Result<(), String> {
+    let records = bicgr::read_from(source).map_err(|e| format!("Failed to read records: {}", e))?;
 
     for record in records {
-        destination.write_all(
-            format!(
-                ">{} {}\n{:?}",
-                record.seq_id,
-                record.desc.unwrap_or_default(),
-                record.tri_integers.to_dna(record.overlap)
-            )
-            .as_bytes(),
-        )?;
+        let seq = record
+            .tri_integers
+            .to_dna(record.overlap)
+            .map_err(|e| format!("Failed to convert record '{}' to DNA: {}", record.seq_id, e))?;
+
+        writeln!(
+            destination,
+            ">{} {}",
+            record.seq_id,
+            record.desc.unwrap_or_default()
+        )
+        .map_err(|e| format!("Failed to write header: {}", e))?;
+        writeln!(destination, "{}", seq).map_err(|e| format!("Failed to write sequence: {}", e))?;
     }
+
     Ok(())
 }
 

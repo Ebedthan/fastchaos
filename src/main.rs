@@ -86,7 +86,9 @@ fn main() -> anyhow::Result<()> {
                 Box::new(io::stdout().lock())
             };
 
-            icgr::decode(input, destination)?;
+            icgr::decode(input, destination)
+                .map_err(|e| format!("Failed to write header: {}", e))
+                .unwrap();
         }
         Commands::Draw(args) => {
             let source = File::open(args.file)?;

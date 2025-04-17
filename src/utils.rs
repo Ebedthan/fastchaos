@@ -15,15 +15,19 @@ use noodles::fasta::Record;
 use crate::icgr::{Icgr, TriIntegers};
 
 pub trait FastaRecord {
-    fn to_icgr(&self, block_length: usize) -> Icgr;
+    fn to_icgr(&self, block_length: usize, overlap: u8) -> Icgr;
 }
 
 impl FastaRecord for Record {
-    fn to_icgr(&self, block_length: usize) -> Icgr {
+    fn to_icgr(&self, block_length: usize, overlap: u8) -> Icgr {
         Icgr {
             id: self.name().to_string(),
             desc: self.description().map(str::to_string),
-            tri_integers: TriIntegers::from_sequence(self.sequence().as_ref(), block_length),
+            tri_integers: TriIntegers::from_sequence(
+                self.sequence().as_ref(),
+                block_length,
+                overlap,
+            ),
         }
     }
 }

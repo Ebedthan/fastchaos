@@ -7,6 +7,18 @@ use crate::icgr::TriIntegersList;
 use serde::Deserialize;
 use std::io::{self, BufRead, Write};
 
+/// BNF Grammar of BICGR file
+///
+/// <bicgr_file>    ::= <header_line> <sequence_line>+
+/// <header_line>   ::= "#seq_id" "\t" "description" "\t" "overlap" "\t" "tri_integers" "\n"
+/// <sequence_line> ::= <seq_id> "\t" <description> "\t" <overlap> "\t" <tri_integers> "\n"
+///
+/// <seq_id>        ::= [^\t\n]+
+/// <description>   ::= [^\t\n]*
+/// <overlap>       ::= [0-9]+
+/// <tri_integers>   ::= <tri_integer> (";" <tri_integer>)*
+/// <tri_integer>    ::= [0-9]+ "," [0-9]+
+
 /// This struct define the block-based integer chaos game representation file format.
 /// The BICGR is a tsv-like file format.
 #[derive(Debug, Deserialize)]

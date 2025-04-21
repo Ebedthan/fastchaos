@@ -106,6 +106,10 @@ impl<'de> Deserialize<'de> for TriIntegersList {
 }
 
 impl TriIntegersList {
+    pub fn new(tri_integers: Vec<TriIntegers>) -> Self {
+        TriIntegersList(tri_integers)
+    }
+
     pub fn iter(&self) -> std::slice::Iter<'_, TriIntegers> {
         self.0.iter()
     }
@@ -202,6 +206,14 @@ impl<'a> IntoIterator for &'a mut TriIntegersList {
 }
 
 impl TriIntegers {
+    pub fn new(x: u8, y: u8, n: usize) -> Self {
+        TriIntegers {
+            x: format!("{x}"),
+            y: format!("{y}"),
+            n,
+        }
+    }
+
     pub(crate) fn from_sequence(
         sequence: &[u8],
         block_length: usize,

@@ -27,7 +27,9 @@ impl FastaRecord for Record {
                 self.sequence().as_ref(),
                 block_length,
                 overlap,
-            ),
+                true,
+            )
+            .unwrap(),
         }
     }
 }

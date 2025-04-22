@@ -12,6 +12,7 @@ use std::str;
 use std::vec::Vec;
 
 use crate::bicgr;
+use crate::error::IcgrError;
 use crate::utils::FastaRecord;
 use anyhow::Result;
 use noodles::fasta;
@@ -114,7 +115,7 @@ impl TriIntegersList {
         self.0.iter()
     }
 
-    pub fn to_dna(&self, overlap: u8) -> Result<String, String> {
+    pub fn to_dna(&self, overlap: u8) -> Result<String, IcgrError> {
         let dna_chunks: Vec<Vec<u8>> = self
             .iter()
             .map(|x| tri_integers_to_dna(x.clone()))
@@ -123,11 +124,20 @@ impl TriIntegersList {
         // merge strings with overlaps
         let merged: Vec<u8> = merge_with_overlap(chunks, overlap as usize)?;
 
-        String::from_utf8(merged).map_err(|e| format!("Invalid UTF-8 sequence: {}", e))
+        // Validate total length: sum of all n - overlap * (k - 1)
+        let expected_len: usize = self.iter().map(|t| t.n).sum::<usize>()
+            - (overlap as usize * (self.len().saturating_sub(1)));
+        if merged.len() != expected_len {
+            return Err(IcgrError::OverlapMismatch {
+                expected: format!("{}", expected_len),
+                actual: format!("{}", merged.len()),
+            });
+        }
+        Ok(String::from_utf8(merged)?)
     }
 }
 
-fn merge_with_overlap(chunks: Vec<&[u8]>, overlap: usize) -> Result<Vec<u8>, String> {
+fn merge_with_overlap(chunks: Vec<&[u8]>, overlap: usize) -> Result<Vec<u8>, IcgrError> {
     if chunks.is_empty() {
         return Ok(Vec::new());
     }
@@ -138,18 +148,17 @@ fn merge_with_overlap(chunks: Vec<&[u8]>, overlap: usize) -> Result<Vec<u8>, Str
         let curr = window[1];
 
         if prev.len() < overlap || curr.len() < overlap {
-            return Err("Chunk too short to contain required overlap".into());
+            return Err(IcgrError::ChunkTooShort);
         }
 
         let prev_tail = &prev[prev.len() - overlap..];
         let curr_head = &curr[..overlap];
 
         if prev_tail != curr_head {
-            return Err(format!(
-                "Overlap mismatch: expected {:?}, got {:?}",
-                String::from_utf8_lossy(prev_tail),
-                String::from_utf8_lossy(curr_head)
-            ));
+            return Err(IcgrError::OverlapMismatch {
+                expected: String::from_utf8_lossy(prev_tail).to_string(),
+                actual: String::from_utf8_lossy(curr_head).to_string(),
+            });
         }
         // Push only the non-overlapping portion of curr
         result.extend_from_slice(&curr[overlap..]);
@@ -218,27 +227,26 @@ impl TriIntegers {
         sequence: &[u8],
         block_length: usize,
         overlap: u8,
-    ) -> TriIntegersList {
+        strict: bool,
+    ) -> Result<TriIntegersList, IcgrError> {
         let seq = String::from_utf8_lossy(sequence);
-        let seq_length = seq.len();
 
-        let chunks: Vec<&str> = if seq_length > block_length {
+        let chunks: Vec<&str> = if seq.len() > block_length {
             str_chunks_overlap(&seq, block_length, overlap as usize).collect()
         } else {
             vec![&seq]
         };
 
-        // Parallelize for large datasets
-        chunks.into_par_iter().map(Self::icgr_from_chunk).collect()
+        let icgrs = chunks
+            .into_par_iter()
+            .map(|chunk| Self::icgr_from_chunk(chunk, strict))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(TriIntegersList(icgrs))
     }
 
-    fn icgr_from_chunk(chunk: &str) -> TriIntegers {
-        let an = [1, 1];
-        let tn = [-1, 1];
-        let cn = [-1, -1];
-        let gn = [1, -1];
+    fn icgr_from_chunk(chunk: &str, strict: bool) -> Result<TriIntegers, IcgrError> {
         let base: i128 = 2;
-
         let mut xx = Vec::with_capacity(chunk.len());
         let mut yy = Vec::with_capacity(chunk.len());
 
@@ -246,10 +254,11 @@ impl TriIntegers {
             let new_index = index as u32;
             let (aa, bb) = match index {
                 0 => match nucleotide {
-                    'A' => (an[0], an[1]),
-                    'T' => (tn[0], tn[1]),
-                    'C' => (cn[0], cn[1]),
-                    'G' => (gn[0], gn[1]),
+                    'A' => (1, 1),
+                    'T' => (-1, 1),
+                    'C' => (-1, -1),
+                    'G' => (1, -1),
+                    _ if strict => return Err(IcgrError::UnknownNucleotide(nucleotide)),
                     _ => (0, 0),
                 },
                 _ => {
@@ -260,6 +269,7 @@ impl TriIntegers {
                         'T' => (prev_x - power, prev_y + power),
                         'C' => (prev_x - power, prev_y - power),
                         'G' => (prev_x + power, prev_y - power),
+                        _ if strict => return Err(IcgrError::UnknownNucleotide(nucleotide)),
                         _ => (prev_x, prev_y),
                     }
                 }
@@ -267,12 +277,12 @@ impl TriIntegers {
             xx.push(aa);
             yy.push(bb);
         }
-        let n = chunk.len();
-        TriIntegers {
-            x: xx[n - 1].to_string(),
-            y: yy[n - 1].to_string(),
-            n,
-        }
+
+        Ok(TriIntegers {
+            x: xx.last().unwrap().to_string(),
+            y: yy.last().unwrap().to_string(),
+            n: chunk.len(),
+        })
     }
 }
 
@@ -423,6 +433,26 @@ pub fn decode<R: BufRead, W: io::Write>(source: R, mut destination: W) -> Result
     }
 
     Ok(())
+}
+
+pub trait ChaosEncoder {
+    fn encode(&self, block_length: usize, overlap: u8) -> Result<TriIntegersList, IcgrError>;
+}
+
+pub trait ChaosDecoder {
+    fn decode(&self, overlap: u8) -> Result<String, IcgrError>;
+}
+
+impl ChaosEncoder for [u8] {
+    fn encode(&self, block_length: usize, overlap: u8) -> Result<TriIntegersList, IcgrError> {
+        TriIntegers::from_sequence(self, block_length, overlap, true)
+    }
+}
+
+impl ChaosDecoder for TriIntegersList {
+    fn decode(&self, overlap: u8) -> Result<String, IcgrError> {
+        self.to_dna(overlap)
+    }
 }
 
 /*

@@ -11,9 +11,11 @@ use noodles::fasta;
 use std::fs::{File, OpenOptions};
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::path::Path;
+
 mod bicgr;
 mod cgr;
 mod cli;
+mod error;
 mod icgr;
 mod utils;
 

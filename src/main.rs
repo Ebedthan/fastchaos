@@ -4,12 +4,13 @@
 // to those terms.
 
 use crate::cli::{Cli, Commands};
-use anyhow::{bail, Context};
+use crate::icgr::{ChaosDecoder, ChaosEncoder};
+use anyhow::Context;
 use clap::Parser;
 use itertools::Itertools;
 use noodles::fasta;
 use std::fs::{File, OpenOptions};
-use std::io::{self, BufRead, BufReader, Read, Write};
+use std::io::{self, BufRead, BufReader, Write};
 use std::path::Path;
 
 mod bicgr;
@@ -29,36 +30,20 @@ fn main() -> anyhow::Result<()> {
 
     match cli.command {
         Commands::Encode(args) => {
-            let mut input = String::new();
             let from_stdin = args.file.as_ref().is_none_or(|p| p == Path::new("-"));
-            if from_stdin {
-                // Read from stdin
+
+            let reader: Box<dyn BufRead> = if from_stdin {
                 let stdin = io::stdin();
-                let mut stdin_lock = stdin.lock();
-                let bytes_read = stdin_lock.read_to_string(&mut input)?;
-
-                if bytes_read == 0 || input.trim().is_empty() {
-                    bail!("Error: No input provided via FILE or stdin.\nUse --help for usage.");
-                }
+                let stdin_lock = stdin.lock();
+                Box::new(stdin_lock)
             } else {
-                let opened_file = File::open(args.file.expect("File argument should be supplied"))?;
-                let mut reader = fasta::Reader::new(BufReader::new(opened_file));
+                let file = File::open(args.file.expect("File argument should be supplied"))?;
+                Box::new(BufReader::new(file))
+            };
 
-                for result in reader.records() {
-                    let record = result?;
-                    input.push_str(&format!(
-                        ">{}\n{}\n",
-                        record.name(),
-                        String::from_utf8_lossy(record.sequence().as_ref())
-                    ));
-                }
+            let mut fasta_reader = fasta::Reader::new(reader);
 
-                if input.trim().is_empty() {
-                    bail!("Error: Provided file is empty.");
-                }
-            }
-
-            let destination: Box<dyn Write> = if let Some(out) = args.output {
+            let mut destination: Box<dyn Write> = if let Some(out) = args.output {
                 Box::new(File::create(out)?)
             } else {
                 Box::new(io::stdout().lock())
@@ -67,30 +52,61 @@ fn main() -> anyhow::Result<()> {
             let block_length: usize = args.block_width;
             let overlap: u8 = args.overlap;
 
-            icgr::encode(input, destination, block_length, overlap)?;
+            for result in fasta_reader.records() {
+                let record = result?;
+                let seq = record.sequence();
+
+                // If the sequence is empty, skip it
+                if seq.is_empty() {
+                    continue;
+                }
+
+                let encoded = seq.as_ref().encode(block_length, overlap)?;
+                let bicgr = bicgr::Record {
+                    seq_id: record.definition().name().to_string(),
+                    desc: record
+                        .definition()
+                        .description()
+                        .map(|desc| desc.to_string()),
+                    overlap,
+                    tri_integers: encoded,
+                };
+                bicgr.write_all(&mut destination)?;
+            }
         }
         Commands::Decode(args) => {
             let from_stdin = args.file.as_ref().is_none_or(|p| p == Path::new("-"));
-            let input = if from_stdin {
-                // Read from stdin
+
+            let reader: Box<dyn BufRead> = if from_stdin {
                 let stdin = io::stdin();
                 let stdin_lock = stdin.lock();
-                Box::new(stdin_lock) as Box<dyn BufRead>
+                Box::new(stdin_lock)
             } else {
-                let path = args.file.expect("File argument should be supplied");
-                let file = File::open(path)?;
-                Box::new(BufReader::new(file)) as Box<dyn BufRead>
+                let file = File::open(args.file.expect("File argument should be supplied"))?;
+                Box::new(BufReader::new(file))
             };
 
-            let destination: Box<dyn Write> = if let Some(out) = args.output {
+            let mut destination: Box<dyn Write> = if let Some(out) = args.output {
                 Box::new(File::create(out)?)
             } else {
                 Box::new(io::stdout().lock())
             };
 
-            icgr::decode(input, destination)
-                .map_err(|e| format!("Failed to write header: {}", e))
+            let records = bicgr::read_from(reader)
+                .map_err(|e| format!("Failed to read records: {}", e))
                 .unwrap();
+
+            for record in records {
+                let seq = record.tri_integers.decode(record.overlap)?;
+
+                writeln!(
+                    destination,
+                    ">{} {}",
+                    record.seq_id,
+                    record.desc.unwrap_or_default()
+                )?;
+                writeln!(destination, "{}", seq)?;
+            }
         }
         Commands::Draw(args) => {
             let source = File::open(args.file)?;

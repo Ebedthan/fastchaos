@@ -24,7 +24,7 @@ use std::io::{self, BufRead, Write};
 /// <tri_integers>   ::= <tri_integer> (";" <tri_integer>)*
 /// <tri_integer>    ::= [0-9]+ "," [0-9]+
 /// ```
-
+///
 /// A single BICGR record representing one encoded sequence.
 #[derive(Debug, Deserialize)]
 pub struct Record {

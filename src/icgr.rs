@@ -5,17 +5,12 @@
 
 use rayon::iter::{FromParallelIterator, ParallelIterator};
 use std::fmt;
-use std::io::BufRead;
-use std::io::{self, BufReader};
 use std::ops::Deref;
 use std::str;
 use std::vec::Vec;
 
-use crate::bicgr;
 use crate::error::IcgrError;
-use crate::utils::FastaRecord;
 use anyhow::Result;
-use noodles::fasta;
 use rayon::iter::IntoParallelIterator;
 use serde::de::{self, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
@@ -339,17 +334,6 @@ pub struct Icgr {
     pub(crate) tri_integers: TriIntegersList,
 }
 
-impl Icgr {
-    fn to_bicgr(&self, overlap: u8) -> bicgr::Record {
-        bicgr::Record {
-            seq_id: self.id.clone(),
-            desc: self.desc.clone(),
-            overlap,
-            tri_integers: self.tri_integers.clone(),
-        }
-    }
-}
-
 /// Determines the nucleotide from ICGR coordinates.
 fn get_nucleotide(x: i128, y: i128) -> Result<char> {
     match (x.signum(), y.signum()) {
@@ -392,47 +376,6 @@ fn str_chunks_overlap<'a>(
                 &s[start..end]
             }),
     )
-}
-
-pub fn encode<W: io::Write>(
-    source: String,
-    mut destination: W,
-    block_length: usize,
-    overlap: u8,
-) -> Result<()> {
-    let mut reader = fasta::Reader::new(BufReader::new(source.as_bytes()));
-    for result in reader.records() {
-        let record = result?;
-        let icgr = record.to_icgr(block_length, overlap);
-        let bicgr_format = icgr.to_bicgr(overlap);
-
-        // Also write to destination file if provided
-        bicgr_format.write_all(&mut destination)?;
-    }
-
-    Ok(())
-}
-
-pub fn decode<R: BufRead, W: io::Write>(source: R, mut destination: W) -> Result<(), String> {
-    let records = bicgr::read_from(source).map_err(|e| format!("Failed to read records: {}", e))?;
-
-    for record in records {
-        let seq = record
-            .tri_integers
-            .to_dna(record.overlap)
-            .map_err(|e| format!("Failed to convert record '{}' to DNA: {}", record.seq_id, e))?;
-
-        writeln!(
-            destination,
-            ">{} {}",
-            record.seq_id,
-            record.desc.unwrap_or_default()
-        )
-        .map_err(|e| format!("Failed to write header: {}", e))?;
-        writeln!(destination, "{}", seq).map_err(|e| format!("Failed to write sequence: {}", e))?;
-    }
-
-    Ok(())
 }
 
 pub trait ChaosEncoder {

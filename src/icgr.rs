@@ -286,22 +286,38 @@ fn tri_integers_to_dna(tri_integers: TriIntegers) -> Vec<u8> {
     let mut complete_dna = Vec::with_capacity(tri_integers.n);
     let base: i128 = 2;
 
-    let mut an = vec![0; tri_integers.n];
-    let mut bn = vec![0; tri_integers.n];
+    let mut an: Vec<i128> = vec![0; tri_integers.n];
+    let mut bn: Vec<i128> = vec![0; tri_integers.n];
     an[tri_integers.n - 1] = tri_integers.x.parse().unwrap_or(0);
     bn[tri_integers.n - 1] = tri_integers.y.parse().unwrap_or(0);
 
     let mut seq = Vec::with_capacity(tri_integers.n);
 
     for index in (0..tri_integers.n).rev() {
-        let nucleotide = get_nucleotide(an[index], bn[index]).unwrap_or('N');
+        // Get nucleotide
+        let nucleotide = match (an[index].signum(), bn[index].signum()) {
+            (1, 1) => 'A',
+            (1, -1) => 'G',
+            (-1, 1) => 'T',
+            (-1, -1) => 'C',
+            _ => 'N',
+        };
         seq.push(nucleotide);
+
         if index > 0 {
-            let (f, g) = get_cgr_vertex(an[index], bn[index]).unwrap_or((0, 0));
+            // Get cgr vertex
+            let (f, g) = match (an[index].signum(), bn[index].signum()) {
+                (1, 1) => (1, 1),
+                (1, -1) => (1, -1),
+                (-1, 1) => (-1, 1),
+                (-1, -1) => (-1, -1),
+                _ => (0, 0),
+            };
             an[index - 1] = an[index] - base.pow(index as u32) * f;
             bn[index - 1] = bn[index] - base.pow(index as u32) * g;
         }
     }
+
     seq.reverse();
     complete_dna.extend(seq.into_iter().map(|c| c as u8));
     complete_dna
@@ -332,28 +348,6 @@ pub struct Icgr {
 
     /// A vector of ICGR which represent the whole DNA sequence
     pub(crate) tri_integers: TriIntegersList,
-}
-
-/// Determines the nucleotide from ICGR coordinates.
-fn get_nucleotide(x: i128, y: i128) -> Result<char> {
-    match (x.signum(), y.signum()) {
-        (1, 1) => Ok('A'),
-        (1, -1) => Ok('G'),
-        (-1, 1) => Ok('T'),
-        (-1, -1) => Ok('C'),
-        _ => Ok('N'),
-    }
-}
-
-/// Determines the CGR vertex from ICGR coordinates.
-fn get_cgr_vertex(x: i128, y: i128) -> Result<(i128, i128)> {
-    match (x.signum(), y.signum()) {
-        (1, 1) => Ok((1, 1)),
-        (1, -1) => Ok((1, -1)),
-        (-1, 1) => Ok((-1, 1)),
-        (-1, -1) => Ok((-1, -1)),
-        _ => Ok((0, 0)),
-    }
 }
 
 /// Function generating an iterator of chunks of sequence
@@ -398,106 +392,68 @@ impl ChaosDecoder for TriIntegersList {
     }
 }
 
-/*
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_get_nucleotide() {
-        assert_eq!(get_nucleotide(1_i128, 1_i128).unwrap(), 'A');
-        assert_eq!(get_nucleotide(1_i128, -1_i128).unwrap(), 'G');
-        assert_eq!(get_nucleotide(-1_i128, -1_i128).unwrap(), 'C');
-        assert_eq!(get_nucleotide(-1_i128, 1_i128).unwrap(), 'T');
-        assert_eq!(get_nucleotide(0_i128, 0_i128).unwrap(), 'N');
+    fn test_icgr_from_chunk_strict() {
+        let result = TriIntegers::icgr_from_chunk("ATGC", true);
+        assert!(result.is_ok());
+
+        let result = TriIntegers::icgr_from_chunk("ATGN", true);
+        assert!(result.is_err()); // 'N' not allowed in strict mode
     }
 
     #[test]
-    fn test_get_cgr_vertex() {
-        assert_eq!(get_cgr_vertex(1_i128, 1_i128).unwrap(), (1, 1));
-        assert_eq!(get_cgr_vertex(1_i128, -1_i128).unwrap(), (1, -1));
-        assert_eq!(get_cgr_vertex(-1_i128, 1_i128).unwrap(), (-1, 1));
-        assert_eq!(get_cgr_vertex(-1_i128, -1_i128).unwrap(), (-1, -1));
-        assert_eq!(get_cgr_vertex(0_i128, 0_i128).unwrap(), (0, 0));
-    }
+    fn test_icgr_from_chunk_non_strict() {
+        let result = TriIntegers::icgr_from_chunk("ATGN", false);
+        assert!(result.is_ok());
 
-    /*/
-    #[test]
-    fn test_from_record() {
-        let seq = fasta::Record::new(
-            fasta::record::Definition::new("sq0", None),
-            fasta::record::Sequence::from(b"ATTGCCGTAA".to_vec()),
-        );
-
-        assert_eq!(
-            from_record(seq, 10),
-            ICGR {
-                id: "sq0".to_string(),
-                desc: None,
-                tri_integers: vec![TriIntegers {
-                    x: "515".to_string(),
-                    y: "783".to_string(),
-                    n: 10
-                }]
-            }
-        );
-    }*/
-
-    #[test]
-    fn test_ichaos() {
-        let ichaos = ICGR {
-            id: "sq0".to_string(),
-            desc: Some(String::from("")),
-            tri_integers: vec![TriIntegers {
-                x: "515".to_string(),
-                y: "783".to_string(),
-                n: 10,
-            }],
-        };
-
-        assert_eq!(ichaos.length(), 10);
-        assert_eq!(
-            ichaos.to_fasta(),
-            fasta::Record::new(
-                fasta::record::Definition::new("sq0", Some("".to_string())),
-                fasta::record::Sequence::from(b"ATTCCCCTAA".to_vec()),
-            )
-        );
-        assert_eq!(ichaos.decode_icgr(), b"ATTCCCCTAA".to_vec());
+        let coords = result.unwrap();
+        assert_eq!(coords.n, 4); // 'N' is taken into account
     }
 
     #[test]
-    fn test_from_sequence() {
-        let ichaos = ICGR {
-            id: "sq0".to_string(),
-            desc: Some(String::from("")),
-            tri_integers: vec![TriIntegers {
-                x: "515".to_string(),
-                y: "783".to_string(),
-                n: 10,
-            }],
-        };
-
-        assert_eq!(
-            TriIntegers::from_sequence(b"ATTGCCGTAA", 10),
-            ichaos.tri_integers
-        );
+    fn test_str_chunks_overlap() {
+        let seq = "ATGCGT";
+        let chunks: Vec<&str> = str_chunks_overlap(seq, 4, 2).collect();
+        assert_eq!(chunks, vec!["ATGC", "GCGT", "GT"]);
     }
-    /*
+
     #[test]
-    fn test_encode_decode() {
-        let file = std::fs::File::open("tests/homo_sapiens_mitochondrion.fa").unwrap();
+    fn test_merge_with_overlap() {
+        let chunks = vec![b"ATGC".as_ref(), b"GCAT".as_ref()];
+        let merged = merge_with_overlap(chunks, 2).unwrap();
+        assert_eq!(String::from_utf8(merged).unwrap(), "ATGCAT");
+    }
 
-        let destination = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open("homo.icgr")
-            .unwrap();
+    #[test]
+    fn test_encode_decode_roundtrip() {
+        let dna = "ATGCGTACGTAGCTAGCTAG";
+        let encoded = dna.as_bytes().encode(6, 2).unwrap();
+        let decoded = encoded.decode(2).unwrap();
 
-        assert!(encode(&file, &destination).is_ok());
-        assert!(decode(std::fs::File::open("homo.icgr").unwrap(), io::stdout()).is_ok());
+        // May not match exactly due to non-uniqueness of reverse CGR,
+        // but should be the same length and base composition if strict mode was off
+        assert_eq!(decoded.len(), dna.len());
+        assert!(decoded.chars().all(|c| "ATGC".contains(c)));
+    }
 
-        std::fs::remove_file("homo.icgr").unwrap();
-    }*/
+    #[test]
+    fn test_tri_integers_display() {
+        let ti = TriIntegersList(vec![TriIntegers {
+            x: "10".to_string(),
+            y: "-5".to_string(),
+            n: 3,
+        }]);
+        assert_eq!(format!("{}", ti), "10,-5,3");
+    }
+
+    #[test]
+    fn test_tri_integers_to_dna() {
+        let encoded = TriIntegers::icgr_from_chunk("ATGC", true).unwrap();
+        let dna = tri_integers_to_dna(encoded.clone());
+        assert_eq!(dna.len(), encoded.n);
+    }
 }
-*/

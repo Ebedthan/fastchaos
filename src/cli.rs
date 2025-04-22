@@ -9,7 +9,7 @@ use std::path::PathBuf;
 #[derive(Parser, Debug)]
 #[command(
     name = "fastchaos",
-    version = "1.0",
+    version = "0.1.0",
     author = "Anicet Ebou <anicet.ebou@gmail.com>",
     about = "Rapid encoding, decoding and analysis of DNA sequences with (Integer) Chaos Game Representation"
 )]
@@ -50,7 +50,7 @@ pub struct EncodeArgs {
     #[arg(short, value_parser = must_not_exist)]
     pub output: Option<PathBuf>,
 
-    /// Sequence block length (either 50 or 100)
+    /// Sequence block length
     #[arg(short = 'w', default_value_t = 100, value_name = "INT", value_parser = validate_block_width)]
     pub block_width: usize,
 
@@ -115,8 +115,13 @@ fn must_not_exist(s: &str) -> Result<PathBuf, String> {
 
 fn validate_block_width(val: &str) -> Result<usize, String> {
     match val.parse::<usize>() {
-        Ok(50) | Ok(100) => Ok(val.parse().unwrap()),
-        Ok(_) => Err(String::from("block_width must be 50 or 100")),
+        Ok(v) => {
+            if v <= 100 {
+                Ok(v)
+            } else {
+                Err(String::from("block_widht must be less or equal to 100"))
+            }
+        }
         Err(_) => Err(String::from("block_width must be a number")),
     }
 }

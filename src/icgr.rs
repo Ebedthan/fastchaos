@@ -382,7 +382,7 @@ pub trait ChaosDecoder {
 
 impl ChaosEncoder for [u8] {
     fn encode(&self, block_length: usize, overlap: u8) -> Result<TriIntegersList, IcgrError> {
-        TriIntegers::from_sequence(self, block_length, overlap, true)
+        TriIntegers::from_sequence(self, block_length, overlap, false)
     }
 }
 

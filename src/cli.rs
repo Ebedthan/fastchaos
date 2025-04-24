@@ -55,7 +55,7 @@ pub struct EncodeArgs {
     pub block_width: usize,
 
     /// Sequence overlap
-    #[arg(long = "ovl", default_value_t = 10, value_name = "INT", value_parser = validate_overlap)]
+    #[arg(long = "ovl", default_value_t = 5, value_name = "INT", value_parser = validate_overlap)]
     pub overlap: u8,
 }
 
@@ -129,10 +129,10 @@ fn validate_block_width(val: &str) -> Result<usize, String> {
 fn validate_overlap(val: &str) -> Result<u8, String> {
     match val.parse::<u8>() {
         Ok(v) => {
-            if v > 0 && v <= 10 {
+            if v > 0 && v <= 20 {
                 Ok(v)
             } else {
-                Err(String::from("overlap must be between 1 and 10"))
+                Err(String::from("overlap must be between 1 and 20"))
             }
         }
         Err(_) => Err(String::from("overlap must be a number")),

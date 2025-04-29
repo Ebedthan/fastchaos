@@ -51,6 +51,7 @@ fn main() -> anyhow::Result<()> {
 
             let block_length: usize = args.block_width;
             let overlap: u8 = args.overlap;
+            let strict: bool = args.strict;
 
             for result in fasta_reader.records() {
                 let record = result?;
@@ -61,7 +62,7 @@ fn main() -> anyhow::Result<()> {
                     continue;
                 }
 
-                let encoded = seq.as_ref().encode(block_length, overlap)?;
+                let encoded = seq.as_ref().encode(block_length, overlap, strict)?;
                 let bicgr = bicgr::Record {
                     seq_id: record.definition().name().to_string(),
                     desc: record

@@ -57,6 +57,10 @@ pub struct EncodeArgs {
     /// Sequence overlap
     #[arg(long = "ovl", default_value_t = 5, value_name = "INT", value_parser = validate_overlap)]
     pub overlap: u8,
+
+    /// Strict mode that errors out if unknown characters are found
+    #[arg(long = "strict", action = clap::ArgAction::SetTrue)]
+    pub strict: bool,
 }
 
 #[derive(Args, Debug)]

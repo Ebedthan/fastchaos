@@ -14,15 +14,15 @@ use std::io::{self, BufRead, Write};
 ///
 /// ### BNF Grammar of BICGR file:
 /// ```text
-/// <bicgr_file>    ::= <header_line> <sequence_line>+
-/// <header_line>   ::= "#seq_id" "\t" "description" "\t" "overlap" "\t" "tri_integers" "\n"
-/// <sequence_line> ::= <seq_id> "\t" <description> "\t" <overlap> "\t" <tri_integers> "\n"
+/// <bicgr_file>    ::= <sequence_line>+
+/// <sequence_line> ::= <seq_id> "\t" <description> "\t" <block_width> "\t" <overlap> "\t" <tri_integers> "\n"
 ///
 /// <seq_id>         ::= [^\t\n]+
 /// <description>    ::= [^\t\n]*
+/// <block_width>    ::= [0-9]+
 /// <overlap>        ::= [0-9]+
 /// <tri_integers>   ::= <tri_integer> (";" <tri_integer>)*
-/// <tri_integer>    ::= [0-9]+ "," [0-9]+
+/// <tri_integer>    ::= [0-9]+ "," [0-9]+ ("," [0-9])*
 /// ```
 ///
 /// A single BICGR record representing one encoded sequence.

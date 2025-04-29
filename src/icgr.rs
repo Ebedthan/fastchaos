@@ -373,7 +373,12 @@ fn str_chunks_overlap<'a>(
 }
 
 pub trait ChaosEncoder {
-    fn encode(&self, block_length: usize, overlap: u8) -> Result<TriIntegersList, IcgrError>;
+    fn encode(
+        &self,
+        block_length: usize,
+        overlap: u8,
+        strict: bool,
+    ) -> Result<TriIntegersList, IcgrError>;
 }
 
 pub trait ChaosDecoder {
@@ -381,8 +386,13 @@ pub trait ChaosDecoder {
 }
 
 impl ChaosEncoder for [u8] {
-    fn encode(&self, block_length: usize, overlap: u8) -> Result<TriIntegersList, IcgrError> {
-        TriIntegers::from_sequence(self, block_length, overlap, false)
+    fn encode(
+        &self,
+        block_length: usize,
+        overlap: u8,
+        strict: bool,
+    ) -> Result<TriIntegersList, IcgrError> {
+        TriIntegers::from_sequence(self, block_length, overlap, strict)
     }
 }
 
@@ -431,7 +441,7 @@ mod tests {
     #[test]
     fn test_encode_decode_roundtrip() {
         let dna = "ATGCGTACGTAGCTAGCTAG";
-        let encoded = dna.as_bytes().encode(6, 2).unwrap();
+        let encoded = dna.as_bytes().encode(6, 2, true).unwrap();
         let decoded = encoded.decode(2).unwrap();
 
         // May not match exactly due to non-uniqueness of reverse CGR,

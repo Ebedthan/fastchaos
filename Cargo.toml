@@ -1,6 +1,6 @@
 [package]
 name = "chaoscoder"
-version = "0.1.0"
+version = "1.0.0"
 authors = ["Anicet Ebou <anicet.ebou@gmail.com>"]
 edition = "2021"
 description = "chaoscoder encode, decode and analyze DNA sequence using integer Chaos Game Representation"

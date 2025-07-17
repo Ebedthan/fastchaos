@@ -36,11 +36,6 @@ lto = 'thin'
 panic = 'abort'
 incremental = false
 
-# The profile that 'dist' will build with
-[profile.dist]
-inherits = "release"
-lto = "thin"
-
 [[bin]]
 name = "chaoscoder"
 path = "src/main.rs"

@@ -3,7 +3,7 @@
 **DNA sequence encoding, decoding, and analysis using (Integer) Chaos Game Representation**
 
 [![CI](https://github.com/Ebedthan/chaoscoder/actions/workflows/ci.yml/badge.svg)](https://github.com/Ebedthan/chaoscoder/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/Ebedthan/chaoscoder/branch/main/graph/badge.svg?token=K7VN5TH6EZ)](https://codecov.io/gh/Ebedthan/chaoscoder)
+[![codecov](https://codecov.io/gh/Ebedthan/chaoscoder/graph/badge.svg?token=K7VN5TH6EZ)](https://codecov.io/gh/Ebedthan/chaoscoder)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat)](https://github.com/Ebedthan/chaoscoder/blob/master/LICENSE)
 
 

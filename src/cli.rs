@@ -8,7 +8,7 @@ use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
 #[command(
-    name = "fastchaos",
+    name = "chaoscoder",
     version = "0.1.0",
     author = "Anicet Ebou <anicet.ebou@gmail.com>",
     about = "Rapid encoding, decoding and analysis of DNA sequences with (Integer) Chaos Game Representation"

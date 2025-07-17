@@ -331,7 +331,7 @@ fn tri_integers_to_dna(tri_integers: TriIntegers) -> Vec<u8> {
 /// # Examples
 ///
 /// ```
-/// use fastchaos::icgr::IChaos;
+/// use chaoscoder::icgr::IChaos;
 ///
 /// let icgr = IChaos::new("seq1", "description", vec![1, 2, 3]);
 /// assert_eq!(icgr.id(), "seq1");

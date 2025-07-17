@@ -148,6 +148,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
+name = "chaoscoder"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "csv",
+ "dssim-core",
+ "imgref",
+ "itertools",
+ "load_image",
+ "lodepng",
+ "noodles",
+ "plotters",
+ "rayon",
+ "serde",
+ "tempfile",
+ "thiserror 2.0.12",
+]
+
+[[package]]
 name = "chrono"
 version = "0.4.37"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -409,26 +429,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a88c69768c0a15262df21899142bc6df9b9b823546d4b4b9a7bc2d6c448ec6fd"
 dependencies = [
  "hashbrown",
-]
-
-[[package]]
-name = "fastchaos"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "csv",
- "dssim-core",
- "imgref",
- "itertools",
- "load_image",
- "lodepng",
- "noodles",
- "plotters",
- "rayon",
- "serde",
- "tempfile",
- "thiserror 2.0.12",
 ]
 
 [[package]]

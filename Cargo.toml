@@ -1,11 +1,11 @@
 [package]
-name = "fastchaos"
+name = "chaoscoder"
 version = "0.1.0"
 authors = ["Anicet Ebou <anicet.ebou@gmail.com>"]
 edition = "2021"
-description = "fastchaos encode, decode and analyze DNA sequence using integer Chaos Game Representation"
-homepage = "https://github.com/Ebedthan/fastchaos"
-repository = "https://github.com/Ebedthan/fastchaos"
+description = "chaoscoder encode, decode and analyze DNA sequence using integer Chaos Game Representation"
+homepage = "https://github.com/Ebedthan/chaoscoder"
+repository = "https://github.com/Ebedthan/chaoscoder"
 readme = "README.md"
 license = "MIT"
 categories = ["command-line-utilities"]
@@ -42,6 +42,6 @@ inherits = "release"
 lto = "thin"
 
 [[bin]]
-name = "fastchaos"
+name = "chaoscoder"
 path = "src/main.rs"
 bench = false

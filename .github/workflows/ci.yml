@@ -8,21 +8,18 @@ on:
 
 jobs:
   check:
-    name: 🧪 Cargo Check
+    name: Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout sources
+        uses: actions/checkout@v2
 
-      - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y pkg-config libfontconfig1-dev
-
-      - uses: actions-rs/toolchain@v1
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: stable
           override: true
-
-      - uses: Swatinem/rust-cache@v2
 
       - name: Run cargo check
         uses: actions-rs/cargo@v1
@@ -49,11 +46,7 @@ jobs:
             os: ubuntu-latest
             rust: stable
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Install system dependencies (Linux only)
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y pkg-config libfontconfig1-dev
+      - uses: actions/checkout@v2
 
       - uses: actions-rs/toolchain@v1
         with:
@@ -71,96 +64,67 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y pkg-config libfontconfig1-dev
-
-      - name: Install Rust stable and llvm-tools
-        uses: actions-rs/toolchain@v1
+      - uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
+          toolchain: nightly
           override: true
-          components: llvm-tools-preview
 
-      - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@v2
+      - name: Install cargo-tarpaulin
+        uses: actions-rs/install@v0.1
         with:
-          tool: cargo-llvm-cov
+          crate: cargo-tarpaulin
+          version: latest
+          use-tool-cache: true
 
-      - name: Run cargo-llvm-cov
-        run: |
-          cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
+      - name: Run cargo-tarpaulin
+        run: cargo tarpaulin --all-features --timeout 600 --out Xml -- --test-threads 1
 
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
+      - name: Upload coverage to codecov
+        uses: codecov/codecov-action@v5
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
-          files: ./lcov.info
+          verbose: true
+          fail_ci_if_error: true
 
   lints:
-    name: 🧹 Lints and Format
+    name: Lints
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout sources
+        uses: actions/checkout@v2
 
-      - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y pkg-config libfontconfig1-dev
-
-      - uses: actions-rs/toolchain@v1
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: stable
           override: true
           components: rustfmt, clippy
 
-      - uses: Swatinem/rust-cache@v2
-
-      - name: Check formatting
+      - name: Run cargo fmt
         uses: actions-rs/cargo@v1
         with:
           command: fmt
           args: --all -- --check
 
-      - name: Run Clippy
+      - name: Run cargo clippy
         uses: actions-rs/cargo@v1
         with:
           command: clippy
           args: -- -D warnings
 
-  docs:
-    name: 📚 Docs Build
+  minimum_rust_version:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y pkg-config libfontconfig1-dev
-
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
-
-      - uses: Swatinem/rust-cache@v2
-
-      - name: Build docs
-        run: cargo doc --no-deps --document-private-items
-
-  msrv:
-    name: 🏛️ Minimum Rust Version Check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y pkg-config libfontconfig1-dev
+      - uses: actions/checkout@v2
 
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: 1.82.0
           override: true
 
-      - uses: Swatinem/rust-cache@v2
-
-      - name: Run cargo test on MSRV
+      - name: Run tests
         uses: actions-rs/cargo@v1
         with:
           command: test

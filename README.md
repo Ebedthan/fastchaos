@@ -6,7 +6,6 @@
 [![codecov](https://codecov.io/gh/Ebedthan/chaoscoder/branch/main/graph/badge.svg?token=K7VN5TH6EZ)](https://codecov.io/gh/Ebedthan/chaoscoder)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat)](https://github.com/Ebedthan/chaoscoder/blob/master/LICENSE)
 
----
 
 ## 🌟 Overview
 
@@ -19,7 +18,6 @@
 - ✅ **CGR image generation** from DNA sequences
 - ✅ **Similarity analysis** using the [DSSIM algorithm](https://github.com/kornelski/dssim) for comparing CGR images
 
----
 
 ## 🚀 Installation
 

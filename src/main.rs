@@ -94,7 +94,7 @@ fn main() -> anyhow::Result<()> {
             };
 
             let records = bicgr::read_from(reader)
-                .map_err(|e| format!("Failed to read records: {}", e))
+                .map_err(|e| format!("Failed to read records: {e}"))
                 .unwrap();
 
             for record in records {
@@ -106,7 +106,7 @@ fn main() -> anyhow::Result<()> {
                     record.seq_id,
                     record.desc.unwrap_or_default()
                 )?;
-                writeln!(destination, "{}", seq)?;
+                writeln!(destination, "{seq}")?;
             }
         }
         Commands::Draw(args) => {
@@ -166,11 +166,11 @@ fn main() -> anyhow::Result<()> {
             if let Some(output) = args.output {
                 let mut out = OpenOptions::new().append(true).create(true).open(output)?;
                 for result in ssim {
-                    writeln!(out, "{}", result)?;
+                    writeln!(out, "{result}")?;
                 }
             } else {
                 for result in ssim {
-                    println!("{}", result);
+                    println!("{result}");
                 }
             }
         }

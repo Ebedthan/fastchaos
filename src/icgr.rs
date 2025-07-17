@@ -79,8 +79,7 @@ impl<'de> Deserialize<'de> for TriIntegersList {
 
                     if parts.len() != 3 {
                         return Err(de::Error::custom(format!(
-                            "Invalid triplet: '{}'. Expected format 'x,y,n'",
-                            entry
+                            "Invalid triplet: '{entry}'. Expected format 'x,y,n'"
                         )));
                     }
 
@@ -124,7 +123,7 @@ impl TriIntegersList {
             - (overlap as usize * (self.len().saturating_sub(1)));
         if merged.len() != expected_len {
             return Err(IcgrError::OverlapMismatch {
-                expected: format!("{}", expected_len),
+                expected: format!("{expected_len}"),
                 actual: format!("{}", merged.len()),
             });
         }
@@ -187,7 +186,7 @@ impl fmt::Display for TriIntegersList {
             .map(|x| format!("{},{},{}", x.x, x.y, x.n))
             .collect::<Vec<_>>()
             .join(";");
-        write!(f, "{}", s)
+        write!(f, "{s}")
     }
 }
 

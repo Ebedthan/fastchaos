@@ -60,10 +60,6 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: sudo apt-get update && sudo apt-get install -y libfontconfig1-dev pkg-config
 
-      - name: Install fontconfig on macOS
-        if: matrix.os == 'macos-latest'
-        run: brew install fontconfig pkg-config
-
       - name: Run tests
         uses: actions-rs/cargo@v1
         with:

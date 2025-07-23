@@ -6,7 +6,7 @@
 use std::fmt;
 use std::fs::File;
 use std::io::{self, BufReader};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process;
 use std::str;
 
@@ -29,11 +29,14 @@ pub struct Chaos {
 
 impl Chaos {
     /// Draws the CGR and saves it as a PNG file
-    fn draw(&self, outdir: &Path) -> anyhow::Result<()> {
-        let png = format!("{}.png", self.id);
-        let opath = outdir.join(&png);
+    fn draw(&self, output: Option<PathBuf>) -> anyhow::Result<()> {
+        let image = if let Some(out) = output {
+            out
+        } else {
+            PathBuf::from(format!("{}.png", self.id))
+        };
 
-        let root_area = BitMapBackend::new(&opath, (1024, 768)).into_drawing_area();
+        let root_area = BitMapBackend::new(&image, (1024, 768)).into_drawing_area();
         root_area.fill(&WHITE)?;
 
         let mut ctx = ChartBuilder::on(&root_area)
@@ -85,15 +88,15 @@ impl DnaToChaos for fasta::Record {
 }
 
 /// Reads a FASTA file, generates its CGR, and saves it as an image.
-pub fn draw<R: io::Read>(source: R, destination: &Path) -> anyhow::Result<String> {
+pub fn draw<R: io::Read>(source: R, destination: Option<PathBuf>) -> anyhow::Result<()> {
     let mut reader = fasta::Reader::new(BufReader::new(source));
 
-    for record in reader.records() {
-        let chaos = record?.record_to_chaos();
-        chaos.draw(destination)?;
+    for result in reader.records() {
+        let record = result?;
+        let chaos = record.record_to_chaos();
+        chaos.draw(destination.clone())?;
     }
-
-    Err(anyhow::anyhow!("No records found in FASTA file."))
+    Ok(())
 }
 
 /// Structure to store SSIM results
@@ -145,12 +148,14 @@ pub fn compare_genomes(query: &str, reference: &str) -> anyhow::Result<SSIMResul
     let attr = dssim_core::Dssim::new();
     let mut result = SSIMResult::new();
 
-    let qimg = draw(File::open(query)?, dir.path())?;
-    let rimg = draw(File::open(reference)?, dir.path())?;
+    let qimg_out = PathBuf::from(format!("{:?}/query.png", dir.path()));
+    let rimg_out = PathBuf::from(format!("{:?}/reference.png", dir.path()));
+    draw(File::open(query)?, Some(qimg_out.clone()))?;
+    draw(File::open(reference)?, Some(rimg_out.clone()))?;
 
     // Read images
-    let qimage = utils::get_image(&dir.path().join(&qimg))?;
-    let rimage = utils::get_image(&dir.path().join(&rimg))?;
+    let qimage = utils::get_image(&qimg_out)?;
+    let rimage = utils::get_image(&rimg_out)?;
 
     if utils::is_same_width_height(&qimage, &rimage) {
         let (dssim, _) = attr.compare(&qimage.0, &rimage.0);
@@ -205,11 +210,11 @@ mod tests {
             ],
         };
 
-        let ot = Path::new(odir);
+        let ot = PathBuf::from(odir);
         std::fs::create_dir(&ot).unwrap();
 
-        chaos.draw(&ot).unwrap();
+        chaos.draw(Some(ot.clone())).unwrap();
 
-        fs::remove_dir_all(&ot).unwrap();
+        fs::remove_dir_all(ot).unwrap();
     }
 }

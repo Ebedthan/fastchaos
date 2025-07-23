@@ -78,8 +78,8 @@ pub struct DrawArgs {
     /// Input sequence file in FASTA format
     pub file: PathBuf,
 
-    /// Output directory for images
-    #[arg(short)]
+    /// Output file
+    #[arg(short, value_parser = must_not_exist)]
     pub output: Option<PathBuf>,
 }
 

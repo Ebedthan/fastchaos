@@ -111,10 +111,7 @@ fn main() -> anyhow::Result<()> {
         }
         Commands::Draw(args) => {
             let source = File::open(args.file)?;
-            let out = args.output.unwrap_or(
-                std::env::current_dir().expect("Currrent working directory should be valid"),
-            );
-            cgr::draw(source, &out)?;
+            cgr::draw(source, args.output)?
         }
         Commands::Compare(args) => {
             let mut qfiles = Vec::new();

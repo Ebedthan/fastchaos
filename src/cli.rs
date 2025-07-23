@@ -4,7 +4,7 @@
 // to those terms.
 
 use clap::{Args, Parser, Subcommand};
-use std::path::PathBuf;
+use std::{ffi::OsStr, path::PathBuf};
 
 #[derive(Parser, Debug)]
 #[command(
@@ -79,7 +79,7 @@ pub struct DrawArgs {
     pub file: PathBuf,
 
     /// Output file
-    #[arg(short, value_parser = must_not_exist)]
+    #[arg(short, value_parser = validate_image_output)]
     pub output: Option<PathBuf>,
 }
 
@@ -115,6 +115,26 @@ fn must_not_exist(s: &str) -> Result<PathBuf, String> {
     } else {
         Ok(path)
     }
+}
+
+fn validate_image_output(s: &str) -> Result<PathBuf, String> {
+    let mp = PathBuf::from(s);
+
+    if mp.exists() {
+        return Err(format!("{} should not already exist.", mp.display()));
+    }
+    if let Some(ext) = mp.extension() {
+        if ext != OsStr::new("png") {
+            return Err(format!(
+                "{} should have png extension (.png).",
+                mp.display()
+            ));
+        }
+    } else {
+        return Err("Output file must have an extension".to_string());
+    }
+
+    Ok(mp)
 }
 
 fn validate_block_width(val: &str) -> Result<usize, String> {

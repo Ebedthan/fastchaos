@@ -91,11 +91,16 @@ impl DnaToChaos for fasta::Record {
 pub fn draw<R: io::Read>(source: R, destination: Option<PathBuf>) -> anyhow::Result<()> {
     let mut reader = fasta::Reader::new(BufReader::new(source));
 
-    for result in reader.records() {
+    for (count, result) in reader.records().enumerate() {
         let record = result?;
-        let chaos = record.record_to_chaos();
-        chaos.draw(destination.clone())?;
+        if count == 0 {
+            let chaos = record.record_to_chaos();
+            chaos.draw(destination.clone())?;
+        } else {
+            anyhow::bail!("Cannot draw from multi-sequence fasta");
+        }
     }
+
     Ok(())
 }
 

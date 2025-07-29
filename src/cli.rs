@@ -78,7 +78,7 @@ pub struct DrawArgs {
     /// Input sequence file in FASTA format
     pub file: PathBuf,
 
-    /// Output file
+    /// Output file name (.png), defaults to sequence ID
     #[arg(short, value_parser = validate_image_output)]
     pub output: Option<PathBuf>,
 }
@@ -131,7 +131,7 @@ fn validate_image_output(s: &str) -> Result<PathBuf, String> {
             ));
         }
     } else {
-        return Err("Output file must have an extension".to_string());
+        return Err("Output file must have png extension (.png)".to_string());
     }
 
     Ok(mp)

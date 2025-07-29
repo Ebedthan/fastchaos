@@ -104,6 +104,10 @@ pub fn eimgprint(img1: &(DssimImage<f32>, String), img2: &(DssimImage<f32>, Stri
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs::File;
+    use std::io::Write;
+    use std::path::PathBuf;
+    use tempfile::tempdir;
 
     #[test]
     fn test_load_image() {
@@ -163,5 +167,116 @@ mod tests {
         let im: ImgVec<RGBLU> = Img::new(vec![export::rgb::RGB::new(0., 0., 0.)], 1, 1);
         let imr: ImgRef<'_, RGBLU> = im.as_ref();
         ctx.create_image(&imr);
+    }
+
+    #[test]
+    fn test_get_image_valid_png() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("test.png");
+
+        // Create a small 1x1 white PNG image
+        let img = image::RgbaImage::from_pixel(1, 1, image::Rgba([255, 255, 255, 255]));
+        img.save(&file_path).unwrap();
+
+        let result = get_image(&file_path);
+        assert!(result.is_ok());
+        let (image, filename) = result.unwrap();
+        assert_eq!(image.width(), 1);
+        assert_eq!(image.height(), 1);
+        assert!(filename.contains("test.png"));
+    }
+
+    #[test]
+    fn test_get_image_invalid_path() {
+        let path = PathBuf::from("non_existent_image.png");
+        let result = get_image(&path);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_read_lines_success() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("test.txt");
+        let mut file = File::create(&file_path).unwrap();
+        writeln!(file, "line 1").unwrap();
+        writeln!(file, "line 2").unwrap();
+
+        let lines: Vec<_> = read_lines(&file_path)
+            .unwrap()
+            .map(|l| l.unwrap())
+            .collect();
+        assert_eq!(lines, vec!["line 1", "line 2"]);
+    }
+
+    #[test]
+    fn test_read_lines_error() {
+        let path = PathBuf::from("nonexistent_file.txt");
+        let result = read_lines(path);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_is_same_width_height_true() {
+        let attr = Dssim::new();
+        let img_data = image::RgbaImage::from_pixel(2, 2, image::Rgba([0, 0, 0, 255]));
+
+        let dir = tempdir().unwrap();
+        let f1 = dir.path().join("img1.png");
+        let f2 = dir.path().join("img2.png");
+        img_data.save(&f1).unwrap();
+        img_data.save(&f2).unwrap();
+
+        let img1 = load_image(&attr, &f1).unwrap();
+        let img2 = load_image(&attr, &f2).unwrap();
+
+        assert!(is_same_width_height(
+            &(img1.clone(), "img1.png".into()),
+            &(img2.clone(), "img2.png".into())
+        ));
+    }
+
+    #[test]
+    fn test_is_same_width_height_false() {
+        let attr = Dssim::new();
+
+        let dir = tempdir().unwrap();
+        let f1 = dir.path().join("img1.png");
+        let f2 = dir.path().join("img2.png");
+
+        image::RgbaImage::from_pixel(2, 2, image::Rgba([0, 0, 0, 255]))
+            .save(&f1)
+            .unwrap();
+        image::RgbaImage::from_pixel(3, 2, image::Rgba([0, 0, 0, 255]))
+            .save(&f2)
+            .unwrap();
+
+        let img1 = load_image(&attr, &f1).unwrap();
+        let img2 = load_image(&attr, &f2).unwrap();
+
+        assert!(!is_same_width_height(
+            &(img1, "img1.png".into()),
+            &(img2, "img2.png".into())
+        ));
+    }
+
+    #[test]
+    fn test_eimgprint_output() {
+        let attr = Dssim::new();
+        let dir = tempdir().unwrap();
+        let f1 = dir.path().join("a.png");
+        let f2 = dir.path().join("b.png");
+
+        image::RgbaImage::from_pixel(2, 2, image::Rgba([0, 0, 0, 255]))
+            .save(&f1)
+            .unwrap();
+        image::RgbaImage::from_pixel(3, 3, image::Rgba([0, 0, 0, 255]))
+            .save(&f2)
+            .unwrap();
+
+        let i1 = load_image(&attr, &f1).unwrap();
+        let i2 = load_image(&attr, &f2).unwrap();
+
+        // Just ensure it runs without panic — output goes to stderr
+        eimgprint(&(i1, "a.png".into()), &(i2, "b.png".into()));
     }
 }

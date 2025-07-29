@@ -21,6 +21,7 @@
 
 ## 🚀 Installation
 
+### 🛠️ From Source (via Cargo)
 You’ll need a [Rust](https://rust-lang.org/tools/install) toolchain (`stable` channel).
 
 ```bash
@@ -29,14 +30,15 @@ cd chaoscoder
 cargo build --release
 ```
 
+### 📁 Prebuilt Binaries
 
-## Installation
+Download binaries for your platform from the [releases page](https://github.com/Ebedthan/chaoscoder/releases):
 
-```bash
-git clone https://github.com/Ebedthan/chaoscoder.git
-cd chaoscoder
-cargo build --release
-```
+* macOS (Apple Silicon): [Download](https://github.com/Ebedthan/chaoscoder/releases/download/v1.0.0/chaoscoder-v1.0.0-aarch64-apple-darwin.tar.xz) • [Checksum](https://github.com/Ebedthan/chaoscoder/releases/download/v1.0.0/chaoscoder-v1.0.0-aarch64-apple-darwin.tar.xz.sh256)
+* macOS (Intel): [Download](https://github.com/Ebedthan/chaoscoder/releases/download/v1.0.0/chaoscoder-v1.0.0-x86_64-apple-darwin.tar.xz) • [Checksum](https://github.com/Ebedthan/chaoscoder/releases/download/v1.0.0/chaoscoder-v1.0.0-x86_64-apple-darwin.tar.xz.sha256)
+* Linux (x86\_64): [Download](https://github.com/Ebedthan/chaoscoder/releases/download/v1.0.0/chaoscoder-v1.0.0-x86_64-unknown-linux-gnu.tar.xz) • [Checksum](https://github.com/Ebedthan/chaoscoder/releases/download/v1.0.0/chaoscoder-v1.0.0-x86_64-unknown-linux-gnu.tar.xz.sha256)
+* Windows (x86\_64): [Download](https://github.com/Ebedthan/chaoscoder/releases/download/v1.0.0/chaoscoder-v1.0.0-x86_64-pc-windows-msvc.zip) • [Checksum](https://github.com/Ebedthan/chaoscoder/releases/download/v1.0.0/chaoscoder-v1.0.0-x86_64-pc-windows-msvc.zip.sha256)
+
 
 ## 🛠️ Usage
 

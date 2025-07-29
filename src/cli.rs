@@ -162,3 +162,120 @@ fn validate_overlap(val: &str) -> Result<u8, String> {
         Err(_) => Err(String::from("overlap must be a number")),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs::File;
+
+    #[test]
+    fn test_must_not_exist_with_nonexistent_file() {
+        let path = "target/tmp_nonexistent_file.txt";
+        if std::path::Path::new(path).exists() {
+            std::fs::remove_file(path).unwrap();
+        }
+        let result = must_not_exist(path);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), std::path::PathBuf::from(path));
+    }
+
+    #[test]
+    fn test_must_not_exist_with_existing_file() {
+        let path = "target/tmp_existing_file.txt";
+        File::create(path).unwrap();
+        let result = must_not_exist(path);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("should not already exist"));
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn test_validate_image_output_with_valid_png_path() {
+        let path = "target/tmp_image.png";
+        if std::path::Path::new(path).exists() {
+            std::fs::remove_file(path).unwrap();
+        }
+        let result = validate_image_output(path);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), std::path::PathBuf::from(path));
+    }
+
+    #[test]
+    fn test_validate_image_output_with_wrong_extension() {
+        let result = validate_image_output("target/image.jpg");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("should have png extension"));
+    }
+
+    #[test]
+    fn test_validate_image_output_with_missing_extension() {
+        let result = validate_image_output("target/image");
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err(),
+            "Output file must have png extension (.png)"
+        );
+    }
+
+    #[test]
+    fn test_validate_image_output_with_existing_file() {
+        let path = "target/existing.png";
+        File::create(path).unwrap();
+        let result = validate_image_output(path);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("should not already exist"));
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn test_validate_block_width_valid() {
+        let result = validate_block_width("50");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 50);
+    }
+
+    #[test]
+    fn test_validate_block_width_non_number() {
+        let result = validate_block_width("abc");
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "block_width must be a number");
+    }
+
+    #[test]
+    fn test_validate_block_width_too_large() {
+        let result = validate_block_width("101");
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err(),
+            "block_widht must be less or equal to 100"
+        );
+    }
+
+    #[test]
+    fn test_validate_overlap_valid() {
+        let result = validate_overlap("10");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 10);
+    }
+
+    #[test]
+    fn test_validate_overlap_non_number() {
+        let result = validate_overlap("xyz");
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "overlap must be a number");
+    }
+
+    #[test]
+    fn test_validate_overlap_zero() {
+        let result = validate_overlap("0");
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "overlap must be between 1 and 20");
+    }
+
+    #[test]
+    fn test_validate_overlap_above_limit() {
+        let result = validate_overlap("21");
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "overlap must be between 1 and 20");
+    }
+}

@@ -47,7 +47,7 @@ Here are the main commands available
 chaoscoder encode seq.fa
 
 # Decode an iCGR file back to the original sequence
-chaoscoder decode seq.icgr
+chaoscoder decode seq.bicgr
 
 # Generate a CGR image from a DNA sequence
 chaoscoder draw seq.fa
